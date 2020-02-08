@@ -1,11 +1,10 @@
-all: netcode
+all: node app
 
-netcode: daytime_client.cpp daytime_server.cpp
-	g++ daytime_client.cpp -O3 -o ./obj64/daytime_client.o -lboost_system -lboost_thread -lpthread
-	g++ daytime_server.cpp -O3 -o ./obj64/daytime_server.o -lboost_system -lboost_thread -lpthread
+node: node.cpp
+	g++ node.cpp -O3 -o ./obj64/node.o -lboost_system -lboost_thread -lpthread
 
-async: daytime_server_async.cpp
-	g++ daytime_server_async.cpp -O3 -o ./obj64/daytime_server_async.o -lboost_system -lboost_thread -lpthread
+app: app.cpp
+	g++ app.cpp -O3 -o ./obj64/app.o -lboost_system -lboost_thread -lpthread
 
 clean:
 	rm -rf ./obj64/*
