@@ -8,8 +8,7 @@ template <class V> class HashMap {
     HashMap() {}
 
     V get(int key) { 
-        int l = std::trylock(lock);
-        if (l == -1) {
+        if (lock.try_lock()) {
             V val = map[key];
             lock.unlock();
             return val;
@@ -18,17 +17,13 @@ template <class V> class HashMap {
     }
     
     bool put(int key, V value) {
-        int l = std::trylock(lock);
-        if (l == -1) {
+        if (lock.try_lock()) {
             map[key] = value;
             lock.unlock();
             return true;
         }
         return false;
      }
-
-    //Does this key belong to this node?
-    // bool key_in_range(int key) { return false; }
 
     private:
     boost::unordered_map<int, V> map;
