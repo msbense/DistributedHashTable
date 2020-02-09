@@ -43,7 +43,6 @@ template<class V> class Node {
             std::string response(get_response(request));
             std::cerr << "Response: { " << response << " }" << std::endl;
             
-            // boost::asio::const_buffer res_buf = boost::asio::buffer(response);
             connection->start(response);
         }
         else 
@@ -52,38 +51,19 @@ template<class V> class Node {
         start_accept();
     }
 
-        // enum response_code {SUCCESS = 1, FAIL = 0 /*, LIST_NODES */};
-        // typedef struct {
-        //     response_code code;
-        //     V value;
-        // } response_t;
-
     std::string get_response(std::string request_str) {
         std::string ret = "";
-        // ret.code = response_code::FAIL;
 
         if (request_str.length() < 1)
             return ret;
         char type = request_str[0];
         switch (type) {
-            // case '?':
-            //     for (int i = 0; i < all_nodes.size(); i++)
-            //         ret += all_nodes[i] + ",";
-            //     break;
             case 'G':
                 {
                     int key = std::stoi(request_str.substr(2));
                     V value = map.get(key);
-                    std::cerr << "Key: { " << key << " }, Value = { " << value << " }" << std::endl;
-                    if (!value) {
-                        ret = "0";
-                        // ret.code = response_code::FAIL;
-                    }
-                    else {
-                        ret = "1 " + std::to_string(value);
-                        // ret.code = response_code::SUCCESS;
-                        // ret.value = value;
-                    }
+                    std::cerr << "Key: { " << key << " }, Value: { " << value << " }" << std::endl;
+                    if (!value) { ret = "0"; } else { ret = "1 " + std::to_string(value); }
                 }
                 break;
             case 'P':
@@ -92,14 +72,8 @@ template<class V> class Node {
                     size_t v_idx = request_str.find(" ", 2) + 1;
                     V value = std::stoi(request_str.substr(v_idx));
                     bool res = map.put(key, value);
-                    if (res == false) {
-                        ret = "0";
-                        // ret.code = response_code::FAIL;
-                    }
-                    else {
-                        ret = "1";
-                        // ret.code = response_code::SUCCESS;
-                    }
+                    std::cerr << "Key: { " << key << " }, Value: { " << value << " }, " << "Result: { " << res << " }" << std::endl;
+                    if (res == false) { ret = "0"; } else { ret = "1"; }
                 }   
                 break;
             default:
