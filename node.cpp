@@ -64,6 +64,7 @@ template<class V> class Node {
                     V value = map.get(key);
                     std::cerr << "Key: { " << key << " }, Value: { " << value << " }" << std::endl;
                     if (!value) { ret = "0"; } else { ret = "1 " + std::to_string(value); }
+                    ret = (!value) ? "0" : ("1 " + std::to_string(value));
                 }
                 break;
             case 'P':
@@ -73,7 +74,7 @@ template<class V> class Node {
                     V value = std::stoi(request_str.substr(v_idx));
                     bool res = map.put(key, value);
                     std::cerr << "Key: { " << key << " }, Value: { " << value << " }, " << "Result: { " << res << " }" << std::endl;
-                    if (res == false) { ret = "0"; } else { ret = "1"; }
+                    ret = (res == false) ? "0" : "1";
                 }   
                 break;
             default:
