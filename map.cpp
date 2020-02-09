@@ -10,8 +10,9 @@ template <class V> class HashMap {
         return map[key];
     }
     
-    void put(int key, V value) {
+    bool put(int key, V value) {
         map[key] = value;
+        return true;
      }
 
     //Does this key belong to this node?

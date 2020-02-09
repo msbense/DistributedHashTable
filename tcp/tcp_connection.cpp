@@ -21,8 +21,7 @@ class tcp_connection
         }
 
         void start(std::string response) {
-            message_ = response;
-            boost::asio::async_write(socket_, boost::asio::buffer(message_),
+            boost::asio::async_write(socket_, boost::asio::buffer(response),
                                         boost::bind(&tcp_connection::handle_write, shared_from_this(),
                                         boost::asio::placeholders::error,
                                         boost::asio::placeholders::bytes_transferred));
@@ -32,6 +31,5 @@ class tcp_connection
         tcp_connection(boost::asio::io_service& io_service) : socket_(io_service) {}
         void handle_write(const boost::system::error_code& error, size_t bytes_transferred) {}
         tcp::socket socket_;
-        std::string message_;
 };
 
