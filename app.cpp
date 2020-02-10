@@ -1,9 +1,13 @@
 #include <iostream>
+#include <fstream>
 #include <boost/array.hpp>
 #include <boost/asio.hpp>
 #include <string>
 #include <random>
+#include <vector>
+#include <boost/filesystem.hpp>
 
+namespace fs = boost::filesystem;
 using boost::asio::ip::tcp;
 
 // Parameters! :) 
@@ -20,13 +24,22 @@ int successful_gets = 0;
 int unsuccessful_gets = 0;
 
 enum operation_type { GET=0, PUT=1  };
+typedef struct {
+    int node_id;
+    std::string host;
+    std::string port;
+} node_info;
 
 void print_results(void);
-tcp::socket connect_to_node(boost::asio::io_service& io, int key);
-void parse_response(boost::array<char, 128>& buffer, size_t len, operation_type o);
+tcp::socket connect_to_node(boost::asio::io_service& io, int key, std::vector<node_info> nodes);
+void parse_response(boost::array<char, 128>& buffer, size_t len, operation_type optype);
+std::vector<node_info> load_node_info(void);
 
 int main(int argc, char *argv[]) {
     try {
+
+        std::vector<node_info> nodes_info = load_node_info();
+        
         if (argc > 1) {
             NUM_NODES = atoi(argv[1]);
         }
@@ -56,7 +69,7 @@ int main(int argc, char *argv[]) {
                 to_server = to_server + std::to_string(key) + " " + std::to_string(value);
             }
             
-            tcp::socket socket = connect_to_node(io, key);
+            tcp::socket socket = connect_to_node(io, key, nodes_info);
             std::cout << "Request: { " << to_server << " }" << std::endl;
             socket.write_some(boost::asio::buffer(to_server));
             
@@ -82,6 +95,31 @@ int main(int argc, char *argv[]) {
     print_results();
 }
 
+std::vector<node_info> load_node_info() {
+    std::ifstream in("node_info.txt");
+    std::stringstream sstr;
+    sstr << in.rdbuf();
+    std::string ni_str(sstr.str());
+
+    std::vector<node_info> ret;
+    std::vector<std::string> node_strs;
+    int idx = 0;
+    while ((idx = ni_str.find("\n")) != -1) {
+        node_strs.push_back(ni_str.substr(0, idx));
+        ni_str = ni_str.substr(idx + 1, ni_str.length() - idx); //abce:32
+    } 
+    for (int i = 0; i < node_strs.size(); i++) {
+        node_info ni;
+        int colon_idx = node_strs[i].find(":");
+        ni.host = node_strs[i].substr(0, colon_idx);
+        ni.port = node_strs[i].substr(colon_idx + 1, node_strs[i].length() - colon_idx);
+        ni.node_id = i;
+        ret.push_back(ni);
+    }
+
+    return ret;
+}
+
 void print_results() {
     std::cout << std::endl;
     std::cout << "Results (+ = successful): " << std::endl;
@@ -92,10 +130,10 @@ void print_results() {
 }
 
 //returns a socket to the node responsible for that key
-tcp::socket connect_to_node(boost::asio::io_service& io, int key) {
+tcp::socket connect_to_node(boost::asio::io_service& io, int key, std::vector<node_info> nodes) {
     tcp::resolver resolver(io);
     int node = (key % NUM_NODES);
-    //TODO change
+
     std::string port(std::to_string(node + 13)); //for now, connect to localhost:(13 + node)
     tcp::resolver::query query("localhost", port);
     tcp::resolver::iterator endpoint_iterator = resolver.resolve(query);
@@ -104,10 +142,10 @@ tcp::socket connect_to_node(boost::asio::io_service& io, int key) {
     return socket;
 }
 
-void parse_response(boost::array<char, 128>& buffer, size_t len, operation_type o) {
+void parse_response(boost::array<char, 128>& buffer, size_t len, operation_type optype) {
     std::string response_string(buffer.data(), len);
     std::cout << "Response: { " << response_string << " }" << std::endl;
-    switch (o) {
+    switch (optype) {
         case GET:
             if (response_string[0] == '0') unsuccessful_gets++;
             else successful_gets++;

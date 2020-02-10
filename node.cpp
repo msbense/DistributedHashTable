@@ -89,14 +89,17 @@ template<class V> class Node {
 };
 
 int main(int argc, char **argv) {
-   try { 
-        boost::asio::io_service io_service;
+    try { 
         int port = 13;
+        if (argc > 1) {
+            port = atoi(argv[1]);
+        }
+        boost::asio::io_service io_service;
         Node<int> n(io_service, port);
 
         io_service.run();
-   }
-   catch (std::exception& e) {
-       std::cout << e.what() << std::endl;
-   }
+    }
+    catch (std::exception& e) {
+        std::cout << e.what() << std::endl;
+    }
 }
