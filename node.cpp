@@ -24,7 +24,7 @@ template<class V> class Node {
         tcp_connection::pointer connection = tcp_connection::create(acceptor.get_io_service());
         acceptor.async_accept(connection->socket(), boost::bind(&Node::handle_accept, this, connection, 
                                 boost::asio::placeholders::error));
-        std::cerr << "Now accepting commands async" << std::endl;
+        std::cerr << "Listening..." << std::endl;
     }
 
     void handle_accept(tcp_connection::pointer connection, const boost::system::error_code& error) {

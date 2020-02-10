@@ -15,7 +15,6 @@ const int GET_PROBABILITY = 60;
 int NUM_OPERATIONS = 5;
 int KEY_RANGE = 100;
 int VALUE_RANGE = 1000;
-int NUM_NODES = 1;
 
 // Data :D 
 int successful_puts = 0;
@@ -40,13 +39,9 @@ int main(int argc, char *argv[]) {
 
         std::vector<node_info> nodes_info = load_node_info();
         
-        if (argc > 1) {
-            NUM_NODES = atoi(argv[1]);
-        }
-        if (argc > 4) {
-            NUM_OPERATIONS = atoi(argv[2]);
-            KEY_RANGE = atoi(argv[3]);
-            VALUE_RANGE = atoi(argv[4]);
+        if (argc > 2) {
+            NUM_OPERATIONS = atoi(argv[1]);
+            KEY_RANGE = atoi(argv[2]);
         }
 
         boost::asio::io_service io;
