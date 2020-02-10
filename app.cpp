@@ -132,10 +132,9 @@ void print_results() {
 //returns a socket to the node responsible for that key
 tcp::socket connect_to_node(boost::asio::io_service& io, int key, std::vector<node_info> nodes) {
     tcp::resolver resolver(io);
-    int node = (key % NUM_NODES);
-
-    std::string port(std::to_string(node + 13)); //for now, connect to localhost:(13 + node)
-    tcp::resolver::query query("localhost", port);
+    int node_id = (key % nodes.size());
+    node_info node = nodes[node_id];
+    tcp::resolver::query query(node.host, node.port);
     tcp::resolver::iterator endpoint_iterator = resolver.resolve(query);
     tcp::socket socket(io);
     boost::asio::connect(socket, endpoint_iterator);
