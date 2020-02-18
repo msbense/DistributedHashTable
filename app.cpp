@@ -65,8 +65,8 @@ int main(int argc, char *argv[]) {
             }
             
             // std::cout << "Connect: "
-            tcp::socket socket = connect_to_node(io, key, nodes_info);
             std::cout << "Request (" << nodes_info[key % nodes_info.size()].host <<  ") : { " << to_server << " }" << std::endl;
+            tcp::socket socket = connect_to_node(io, key, nodes_info);
             socket.write_some(boost::asio::buffer(to_server));
             
             boost::array<char, 128> buf;
