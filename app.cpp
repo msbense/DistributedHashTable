@@ -14,7 +14,7 @@ using boost::asio::ip::tcp;
 
 // Parameters! :) 
 const int GET_PROBABILITY = 60;
-int NUM_OPERATIONS = 1000000;
+int NUM_OPERATIONS = 100;
 int KEY_RANGE = 100;
 int VALUE_RANGE = 1000;
 
@@ -44,8 +44,8 @@ int main(int argc, char *argv[]) {
         std::vector<node_info> nodes_info = load_node_info();
         
         if (argc > 1) {
-            // NUM_OPERATIONS = atoi(argv[1]);
-            KEY_RANGE = atoi(argv[1]);
+            NUM_OPERATIONS = atoi(argv[1]);
+            KEY_RANGE = atoi(argv[2]);
         }
 
         boost::asio::io_service io;
@@ -55,6 +55,8 @@ int main(int argc, char *argv[]) {
         auto t1 = std::chrono::high_resolution_clock::now();
         for (int i = 0; i < NUM_OPERATIONS; i++) {
             
+            if (i % 100 == 0)
+                std::cout << i;
             std::string to_server = "";
             operation_type optype;
             
@@ -72,7 +74,7 @@ int main(int argc, char *argv[]) {
             }
             
             // std::cout << "Connect: "
-            std::cout << "Request (" << nodes_info[key % nodes_info.size()].host <<  ") : { " << to_server << " }" << std::endl;
+            // std::cout << "Request (" << nodes_info[key % nodes_info.size()].host <<  ") : { " << to_server << " }" << std::endl;
             tcp::socket socket = connect_to_node(io, key, nodes_info);
             socket.write_some(boost::asio::buffer(to_server));
             
@@ -152,7 +154,7 @@ tcp::socket connect_to_node(boost::asio::io_service& io, int key, std::vector<no
 
 void parse_response(boost::array<char, 128>& buffer, size_t len, operation_type optype) {
     std::string response_string(buffer.data(), len);
-    std::cout << "Response: { " << response_string << " }" << std::endl;
+    // std::cout << "Response: { " << response_string << " }" << std::endl;
     switch (optype) {
         case GET:
             if (response_string[0] == '0') unsuccessful_gets++;
