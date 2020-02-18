@@ -92,7 +92,10 @@ int main(int argc, char *argv[]) {
         auto t2 = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2-t1).count();
         print_results();
-        std::cout << "Duration: " << duration << " microseconds" << std::endl; 
+        std::cout << "Duration: " << duration << " microseconds" << std::endl;
+        double throughput = 1000000 / (duration / 1E6);
+        std::cout << "Throughput: " << throughput << std::endl;
+        std::cout << "Latency: " << 1 / throughput << std::endl; 
     }
     catch (std::exception& e) {
         std::cerr << e.what() << std::endl;
