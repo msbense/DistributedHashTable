@@ -34,7 +34,7 @@ typedef struct {
 
 void print_results(void);
 tcp::socket connect_to_node(boost::asio::io_service& io, int key, std::vector<node_info> nodes);
-void parse_response(boost::array<char, 128>& buffer, size_t len, operation_type optype);
+bool parse_response(boost::array<char, 128>& buffer, size_t len, operation_type optype);
 std::vector<node_info> load_node_info(void);
 void print_nodes_info(std::vector<node_info> nodes);
 
@@ -75,6 +75,7 @@ int main(int argc, char *argv[]) {
             
             // std::cout << "Connect: "
             // std::cout << "Request (" << nodes_info[key % nodes_info.size()].host <<  ") : { " << to_server << " }" << std::endl;
+try_transaction:
             tcp::socket socket = connect_to_node(io, key, nodes_info);
             socket.write_some(boost::asio::buffer(to_server));
             
@@ -89,7 +90,10 @@ int main(int argc, char *argv[]) {
                 throw error;
             }
 
-            parse_response(buf, len, optype);
+            bool result = parse_response(buf, len, optype);
+            if (!result) {
+                goto try_transaction;
+            }
         }
         auto t2 = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2-t1).count();
@@ -152,7 +156,7 @@ tcp::socket connect_to_node(boost::asio::io_service& io, int key, std::vector<no
     return socket;
 }
 
-void parse_response(boost::array<char, 128>& buffer, size_t len, operation_type optype) {
+bool parse_response(boost::array<char, 128>& buffer, size_t len, operation_type optype) {
     std::string response_string(buffer.data(), len);
     // std::cout << "Response: { " << response_string << " }" << std::endl;
     switch (optype) {
@@ -161,12 +165,16 @@ void parse_response(boost::array<char, 128>& buffer, size_t len, operation_type 
             else successful_gets++;
             break;
         case PUT:
-            if (response_string[0] == '0') unsuccessful_puts++;
+            if (response_string[0] == '0') {
+                unsuccessful_puts++;
+                return false;
+            }
             else successful_puts++;
             break;
         default:
             break;
     }
+    return true;
 }
 
 void print_nodes_info(std::vector<node_info> nodes) {
