@@ -13,7 +13,7 @@ namespace fs = boost::filesystem;
 using boost::asio::ip::tcp;
 
 // Parameters! :) 
-const int GET_PROBABILITY = 60;
+const int GET_PROBABILITY = 30;
 int NUM_OPERATIONS = 100;
 int KEY_RANGE = 100;
 int VALUE_RANGE = 1000;
