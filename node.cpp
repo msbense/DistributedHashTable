@@ -27,6 +27,12 @@ template<class V> class Node {
         std::cerr << "Listening..." << std::endl;
     }
 
+    void continue_accept() {
+        tcp_connection::pointer connection = tcp_connection::create(acceptor.get_io_service());
+        acceptor.async_accept(connection->socket(), boost::bind(&Node::handle_accept, this, connection, 
+                                boost::asio::placeholders::error));
+    }
+
     void handle_accept(tcp_connection::pointer connection, const boost::system::error_code& error) {
         if (!error) {
             tcp::socket& socket = connection->socket();
@@ -48,7 +54,7 @@ template<class V> class Node {
         else 
             throw error;
         
-        start_accept();
+        continue_accept();
     }
 
     std::string get_response(std::string request_str) {
@@ -62,7 +68,7 @@ template<class V> class Node {
                 {
                     int key = std::stoi(request_str.substr(2));
                     V value = map.get(key);
-                    std::cerr << "Key: { " << key << " }, Value: { " << value << " }" << std::endl;
+                    // std::cerr << "Key: { " << key << " }, Value: { " << value << " }" << std::endl;
                     if (!value) { ret = "0"; } else { ret = "1 " + std::to_string(value); }
                     ret = (!value) ? "0" : ("1 " + std::to_string(value));
                 }
@@ -73,7 +79,7 @@ template<class V> class Node {
                     size_t v_idx = request_str.find(" ", 2) + 1;
                     V value = std::stoi(request_str.substr(v_idx));
                     bool res = map.put(key, value);
-                    std::cerr << "Key: { " << key << " }, Value: { " << value << " }, " << "Result: { " << res << " }" << std::endl;
+                    // std::cerr << "Key: { " << key << " }, Value: { " << value << " }, " << "Result: { " << res << " }" << std::endl;
                     ret = (res == false) ? "0" : "1";
                 }   
                 break;

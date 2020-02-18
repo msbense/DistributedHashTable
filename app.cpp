@@ -45,7 +45,7 @@ int main(int argc, char *argv[]) {
         }
 
         boost::asio::io_service io;
-            
+        
         for (int i = 0; i < NUM_OPERATIONS; i++) {
             
             std::string to_server = "";
@@ -64,8 +64,9 @@ int main(int argc, char *argv[]) {
                 to_server = to_server + std::to_string(key) + " " + std::to_string(value);
             }
             
+            // std::cout << "Connect: "
             tcp::socket socket = connect_to_node(io, key, nodes_info);
-            std::cout << "Request: { " << to_server << " }" << std::endl;
+            std::cout << "Request (" << nodes_info[key % nodes_info.size()].host <<  ") : { " << to_server << " }" << std::endl;
             socket.write_some(boost::asio::buffer(to_server));
             
             boost::array<char, 128> buf;
@@ -84,6 +85,7 @@ int main(int argc, char *argv[]) {
 
     }
     catch (std::exception& e) {
+
         std::cerr << e.what() << std::endl;
     }
 
