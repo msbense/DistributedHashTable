@@ -11,7 +11,7 @@ template <class V> class HashMap {
         if (lock.try_lock()) {
             // lock.lock();
             V val = map[key];
-            // lock.unlock();
+            lock.unlock();
             return val;
         }
         return NULL;
@@ -21,7 +21,7 @@ template <class V> class HashMap {
         if (lock.try_lock()) {
             // lock.lock();
             map[key] = value;
-            // lock.unlock();
+            lock.unlock();
             return true;
         }
         return false;
