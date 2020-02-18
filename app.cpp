@@ -95,7 +95,7 @@ int main(int argc, char *argv[]) {
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2-t1).count();
         print_results();
         std::cout << "Duration: " << duration << " microseconds" << std::endl;
-        double throughput = 1000000 / (duration / 1E6);
+        double throughput = NUM_OPERATIONS / (duration / 1E6);
         std::cout << "Throughput: " << throughput << " operations / second" << std::endl;
         std::cout << "Latency: " << 1 / throughput << " seconds / operation" << std::endl; 
     }
