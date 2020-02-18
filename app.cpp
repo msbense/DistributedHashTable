@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fstream>
+#include <chrono>
 #include <boost/array.hpp>
 #include <boost/asio.hpp>
 #include <string>
@@ -8,6 +9,7 @@
 #include <boost/filesystem.hpp>
 
 namespace fs = boost::filesystem;
+// namespace chrono = std::chrono;//::high_resolution_clock;
 using boost::asio::ip::tcp;
 
 // Parameters! :) 
@@ -29,6 +31,7 @@ typedef struct {
     std::string port;
 } node_info;
 
+
 void print_results(void);
 tcp::socket connect_to_node(boost::asio::io_service& io, int key, std::vector<node_info> nodes);
 void parse_response(boost::array<char, 128>& buffer, size_t len, operation_type optype);
@@ -49,6 +52,7 @@ int main(int argc, char *argv[]) {
         
         print_nodes_info(nodes_info);
 
+        auto t1 = std::chrono::high_resolution_clock::now();
         for (int i = 0; i < NUM_OPERATIONS; i++) {
             
             std::string to_server = "";
@@ -85,14 +89,15 @@ int main(int argc, char *argv[]) {
 
             parse_response(buf, len, optype);
         }
-
+        auto t2 = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2-t1).count();
+        print_results();
+        std::cout << "Duration: " << duration << " microseconds" << std::endl; 
     }
     catch (std::exception& e) {
-
         std::cerr << e.what() << std::endl;
     }
 
-    print_results();
 }
 
 std::vector<node_info> load_node_info() {
@@ -127,6 +132,7 @@ void print_results() {
     std::cout << "-G: " << unsuccessful_gets << std::endl;
     std::cout << "+P: " << successful_puts << std::endl;
     std::cout << "-P: " << unsuccessful_puts << std::endl;
+    
 }
 
 //returns a socket to the node responsible for that key
@@ -161,8 +167,8 @@ void parse_response(boost::array<char, 128>& buffer, size_t len, operation_type 
 void print_nodes_info(std::vector<node_info> nodes) {
     std::cerr << "Nodes: " << nodes.size() << std::endl;
     for (int i = 0; i < nodes.size(); i++) {
-        std::cerr << nodes[i].node_id;
-        std::cerr << nodes[i].host;
+        std::cerr << nodes[i].node_id << " ";
+        std::cerr << nodes[i].host << ":";
         std::cerr << nodes[i].port;
         std::cerr << std::endl;
     }
