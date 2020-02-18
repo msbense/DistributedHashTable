@@ -9,8 +9,9 @@ template <class V> class HashMap {
 
     V get(int key) { 
         // if (lock.try_lock()) {
+            lock.lock();
             V val = map[key];
-            // lock.unlock();
+            lock.unlock();
             return val;
         // }
         // return NULL;
@@ -18,8 +19,9 @@ template <class V> class HashMap {
     
     bool put(int key, V value) {
         // if (lock.try_lock()) {
+            lock.lock();
             map[key] = value;
-            // lock.unlock();
+            lock.unlock();
             return true;
         // }
         // return false;
