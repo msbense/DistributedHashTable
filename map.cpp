@@ -8,23 +8,23 @@ template <class V> class HashMap {
     HashMap() {}
 
     V get(int key) { 
-        // if (lock.try_lock()) {
-            lock.lock();
+        if (lock.try_lock()) {
+            // lock.lock();
             V val = map[key];
-            lock.unlock();
+            // lock.unlock();
             return val;
-        // }
-        // return NULL;
+        }
+        return NULL;
     }
     
     bool put(int key, V value) {
-        // if (lock.try_lock()) {
-            lock.lock();
+        if (lock.try_lock()) {
+            // lock.lock();
             map[key] = value;
-            lock.unlock();
+            // lock.unlock();
             return true;
-        // }
-        // return false;
+        }
+        return false;
      }
 
     private:
