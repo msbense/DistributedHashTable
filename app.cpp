@@ -55,8 +55,8 @@ int main(int argc, char *argv[]) {
         auto t1 = std::chrono::high_resolution_clock::now();
         for (int i = 0; i < NUM_OPERATIONS; i++) {
             
-            if (i % 100 == 0)
-                std::cout << i;
+            // if (i % 100 == 0)
+                // std::cout << i;
             std::string to_server = "";
             operation_type optype;
             
