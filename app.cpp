@@ -33,6 +33,7 @@ void print_results(void);
 tcp::socket connect_to_node(boost::asio::io_service& io, int key, std::vector<node_info> nodes);
 void parse_response(boost::array<char, 128>& buffer, size_t len, operation_type optype);
 std::vector<node_info> load_node_info(void);
+void print_nodes_info(std::vector<node_info> nodes);
 
 int main(int argc, char *argv[]) {
     try {
@@ -46,6 +47,8 @@ int main(int argc, char *argv[]) {
 
         boost::asio::io_service io;
         
+        print_nodes_info(nodes_info);
+
         for (int i = 0; i < NUM_OPERATIONS; i++) {
             
             std::string to_server = "";
@@ -152,5 +155,15 @@ void parse_response(boost::array<char, 128>& buffer, size_t len, operation_type 
             break;
         default:
             break;
+    }
+}
+
+void print_nodes_info(std::vector<node_info> nodes) {
+    std::cout << "Nodes:" << std::endl;
+    for (int i = 0; i < nodes.size(); i++) {
+        std::cout << nodes[i].node_id;
+        std::cout << nodes[i].host;
+        std::cout << nodes[i].port;
+        std::cout << std::endl;
     }
 }
