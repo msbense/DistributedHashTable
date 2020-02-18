@@ -14,7 +14,7 @@ using boost::asio::ip::tcp;
 
 // Parameters! :) 
 const int GET_PROBABILITY = 60;
-int NUM_OPERATIONS = 5;
+int NUM_OPERATIONS = 1000000;
 int KEY_RANGE = 100;
 int VALUE_RANGE = 1000;
 
@@ -43,9 +43,9 @@ int main(int argc, char *argv[]) {
 
         std::vector<node_info> nodes_info = load_node_info();
         
-        if (argc > 2) {
-            NUM_OPERATIONS = atoi(argv[1]);
-            KEY_RANGE = atoi(argv[2]);
+        if (argc > 1) {
+            // NUM_OPERATIONS = atoi(argv[1]);
+            KEY_RANGE = atoi(argv[1]);
         }
 
         boost::asio::io_service io;
