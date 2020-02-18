@@ -159,11 +159,11 @@ void parse_response(boost::array<char, 128>& buffer, size_t len, operation_type 
 }
 
 void print_nodes_info(std::vector<node_info> nodes) {
-    std::cout << "Nodes:" << std::endl;
+    std::cerr << "Nodes:" << std::endl;
     for (int i = 0; i < nodes.size(); i++) {
-        std::cout << nodes[i].node_id;
-        std::cout << nodes[i].host;
-        std::cout << nodes[i].port;
-        std::cout << std::endl;
+        std::cerr << nodes[i].node_id;
+        std::cerr << nodes[i].host;
+        std::cerr << nodes[i].port;
+        std::cerr << std::endl;
     }
 }
