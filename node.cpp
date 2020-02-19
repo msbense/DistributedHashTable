@@ -21,10 +21,17 @@ template<class V> class Node {
 
     private:
     void start_accept() {
-        tcp_connection::pointer connection = tcp_connection::create(acceptor.get_io_service());
-        acceptor.async_accept(connection->socket(), boost::bind(&Node::handle_accept, this, connection, 
-                                boost::asio::placeholders::error));
-        std::cerr << "Listening..." << std::endl;
+        while (true) {
+            std::cerr << "Listening..." << std::endl;
+            tcp_connection::pointer connection = tcp_connection::create(acceptor.get_io_service());
+        // acceptor.accept(connection->socket(), boost::bind(&Node::handle_accept, this, connection, 
+                                // boost::asio::placeholders::error));
+            acceptor.accept(connection->socket());
+            if (fork() == 0) {
+                handle_accept(connection);
+                return;
+            }
+        }
     }
 
     void continue_accept() {
@@ -33,28 +40,28 @@ template<class V> class Node {
                                 boost::asio::placeholders::error));
     }
 
-    void handle_accept(tcp_connection::pointer connection, const boost::system::error_code& error) {
-        if (!error) {
-            tcp::socket& socket = connection->socket();
-            
-            boost::array<char, 64> buf;
-            boost::system::error_code error;
-            size_t len = socket.read_some(boost::asio::buffer(buf), error);
-            if (error)  
-                throw error; 
-
-            std::string request(buf.begin(), len);
-            // std::cerr << "Request: { " << request << " }" << std::endl;
-
-            std::string response(get_response(request));
-            // std::cerr << "Response: { " << response << " }" << std::endl;
-            
-            connection->start(response);
-        }
-        else 
-            throw error;
+    void handle_accept(tcp_connection::pointer connection /*, const boost::system::error_code& error */) {
+        // if (!error) {
+        tcp::socket& socket = connection->socket();
         
-        continue_accept();
+        boost::array<char, 64> buf;
+        boost::system::error_code error;
+        size_t len = socket.read_some(boost::asio::buffer(buf), error);
+        if (error)  
+            throw error; 
+
+        std::string request(buf.begin(), len);
+        // std::cerr << "Request: { " << request << " }" << std::endl;
+
+        std::string response(get_response(request));
+        // std::cerr << "Response: { " << response << " }" << std::endl;
+        
+        connection->start(response);
+        // }
+        // else 
+        // throw error;
+        
+        // continue_accept();
     }
 
     std::string get_response(std::string request_str) {
