@@ -29,7 +29,7 @@ template<class V> class Node {
                 std::cerr << "Accepted connection" << std::endl;
                 handle_accept(connection);
                 return;
-                std::cerr << 
+                std::cerr << "Ended connection" << std::endl;
             }
         }
     }
