@@ -24,20 +24,14 @@ template<class V> class Node {
         std::cerr << "Listening..." << std::endl;
         while (true) {
             tcp_connection::pointer connection = tcp_connection::create(acceptor.get_io_service());
-        // acceptor.accept(connection->socket(), boost::bind(&Node::handle_accept, this, connection, 
-                                // boost::asio::placeholders::error));
             acceptor.accept(connection->socket());
             if (fork() == 0) {
+                std::cerr << "Accepted connection" << std::endl;
                 handle_accept(connection);
                 return;
+                std::cerr << 
             }
         }
-    }
-
-    void continue_accept() {
-        tcp_connection::pointer connection = tcp_connection::create(acceptor.get_io_service());
-        acceptor.async_accept(connection->socket(), boost::bind(&Node::handle_accept, this, connection, 
-                                boost::asio::placeholders::error));
     }
 
     void handle_accept(tcp_connection::pointer connection /*, const boost::system::error_code& error */) {
@@ -47,8 +41,10 @@ template<class V> class Node {
         boost::array<char, 64> buf;
         boost::system::error_code error;
         size_t len = socket.read_some(boost::asio::buffer(buf), error);
-        if (error)  
+        if (error) {  
+            std::cerr << "Error thrown in node.cpp ln52" << std::endl;
             throw error; 
+        }
 
         std::string request(buf.begin(), len);
         // std::cerr << "Request: { " << request << " }" << std::endl;
@@ -113,6 +109,7 @@ int main(int argc, char **argv) {
         io_service.run();
     }
     catch (std::exception& e) {
+        
         std::cout << e.what() << std::endl;
     }
 }
