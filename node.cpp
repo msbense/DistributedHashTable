@@ -21,8 +21,8 @@ template<class V> class Node {
 
     private:
     void start_accept() {
+        std::cerr << "Listening..." << std::endl;
         while (true) {
-            std::cerr << "Listening..." << std::endl;
             tcp_connection::pointer connection = tcp_connection::create(acceptor.get_io_service());
         // acceptor.accept(connection->socket(), boost::bind(&Node::handle_accept, this, connection, 
                                 // boost::asio::placeholders::error));
@@ -51,10 +51,10 @@ template<class V> class Node {
             throw error; 
 
         std::string request(buf.begin(), len);
-        // std::cerr << "Request: { " << request << " }" << std::endl;
+        std::cerr << "Request: { " << request << " }" << std::endl;
 
         std::string response(get_response(request));
-        // std::cerr << "Response: { " << response << " }" << std::endl;
+        std::cerr << "Response: { " << response << " }" << std::endl;
         
         connection->start(response);
         // }
