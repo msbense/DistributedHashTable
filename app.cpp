@@ -87,6 +87,7 @@ try_transaction:
                 return 0;
             }
             else if (error) {
+                std::cerr << "Error app.cpp ln90" << std::endl;
                 throw error;
             }
 
@@ -104,6 +105,7 @@ try_transaction:
         std::cout << "Latency: " << 1 / throughput << " seconds / operation" << std::endl; 
     }
     catch (std::exception& e) {
+        std::cerr << "Error app.cpp ln108" << std::endl;
         std::cerr << e.what() << std::endl;
     }
 
