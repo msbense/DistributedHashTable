@@ -26,10 +26,10 @@ template<class V> class Node {
             tcp_connection::pointer connection = tcp_connection::create(acceptor.get_io_service());
             acceptor.accept(connection->socket());
             if (fork() == 0) {
-                std::cerr << "Accepted connection" << std::endl;
+                // std::cerr << "Accepted connection" << std::endl;
                 handle_accept(connection);
+                // std::cerr << "Ended connection" << std::endl;
                 return;
-                std::cerr << "Ended connection" << std::endl;
             }
         }
     }
