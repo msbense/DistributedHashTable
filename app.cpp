@@ -60,18 +60,18 @@ int main(int argc, char *argv[]) {
             std::string to_server = "";
             operation_type optype;
             
-            int key = std::rand() % KEY_RANGE;
-            if (std::rand() % 100 < GET_PROBABILITY) {
-                optype = operation_type::GET;
-                to_server = to_server + "G ";
-                to_server = to_server + std::to_string(key);
-            }
-            else {
-                optype = operation_type::PUT;
-                to_server = to_server + "P ";
-                int value = std::rand() % VALUE_RANGE;
-                to_server = to_server + std::to_string(key) + " " + std::to_string(value);
-            }
+            int key = 11; //std::rand() % KEY_RANGE;
+            // if (std::rand() % 100 < GET_PROBABILITY) {
+            //     optype = operation_type::GET;
+            //     to_server = "G " + std::to_string(key);
+            // }
+            // else {
+            //     optype = operation_type::PUT;
+            //     int value = std::rand() % VALUE_RANGE;
+            //     to_server = "P " + std::to_string(key) + " " + std::to_string(value);
+            // }
+            optype = operation_type::GET;
+            to_server = "G " + std::to_string(key);
             
             // std::cout << "Connect: "
             // std::cout << "Request (" << nodes_info[key % nodes_info.size()].host <<  ") : { " << to_server << " }" << std::endl;
