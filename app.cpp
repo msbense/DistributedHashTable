@@ -87,7 +87,7 @@ try_transaction:
                 return 0;
             }
             else if (error) {
-                std::cerr << "Error app.cpp ln90" << std::endl;
+                std::cerr << "Error app.cpp: " << error.message() << std::endl;
                 throw error;
             }
 
