@@ -51,10 +51,10 @@ template<class V> class Node {
             throw error; 
 
         std::string request(buf.begin(), len);
-        std::cerr << "Request: { " << request << " }" << std::endl;
+        // std::cerr << "Request: { " << request << " }" << std::endl;
 
         std::string response(get_response(request));
-        std::cerr << "Response: { " << response << " }" << std::endl;
+        // std::cerr << "Response: { " << response << " }" << std::endl;
         
         connection->start(response);
         // }
