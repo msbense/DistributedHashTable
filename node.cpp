@@ -11,6 +11,7 @@
          
 
 using boost::asio::ip::tcp;
+// pid_t gettid(void);
 
 template<class V> class Node {
 
@@ -21,20 +22,24 @@ template<class V> class Node {
 
     private:
     void start_accept() {
-        std::cerr << "Listening..." << std::endl;
         while (true) {
+        // std::cerr << "Listening..." << std::endl;
             tcp_connection::pointer connection = tcp_connection::create(acceptor.get_io_service());
             acceptor.accept(connection->socket());
+            
             if (fork() == 0) {
-                // std::cerr << "Accepted connection" << std::endl;
+                // std::cerr << "Accepted connection "  << std::endl;
                 handle_accept(connection);
-                // std::cerr << "Ended connection" << std::endl;
-                return;
+                // std::cerr << "Ended connection "  << std::endl;
+                exit(0);
             }
+
+            // std::thread t(&Node<V>::handle_accept, connection);
         }
     }
 
     void handle_accept(tcp_connection::pointer connection /*, const boost::system::error_code& error */) {
+        // std::cerr << "Accepted connection " << std::this_thread::get_id() << std::endl;
         // if (!error) {
         tcp::socket& socket = connection->socket();
         
@@ -42,7 +47,7 @@ template<class V> class Node {
         boost::system::error_code error;
         size_t len = socket.read_some(boost::asio::buffer(buf), error);
         if (error) {  
-            std::cerr << "Error thrown in node.cpp ln52" << std::endl;
+            std::cerr << "Error thrown in node.cpp ln52 when reading socket" << std::endl;
             throw error; 
         }
 
@@ -53,6 +58,8 @@ template<class V> class Node {
         // std::cerr << "Response: { " << response << " }" << std::endl;
         
         connection->start(response);
+//         std::cerr << "Ended connection " << std::this_thread::get_id() << std::endl;
+
         // }
         // else 
         // throw error;

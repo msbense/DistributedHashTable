@@ -60,18 +60,18 @@ int main(int argc, char *argv[]) {
             std::string to_server = "";
             operation_type optype;
             
-            int key = 11; //std::rand() % KEY_RANGE;
-            // if (std::rand() % 100 < GET_PROBABILITY) {
-            //     optype = operation_type::GET;
-            //     to_server = "G " + std::to_string(key);
-            // }
-            // else {
-            //     optype = operation_type::PUT;
-            //     int value = std::rand() % VALUE_RANGE;
-            //     to_server = "P " + std::to_string(key) + " " + std::to_string(value);
-            // }
-            optype = operation_type::GET;
-            to_server = "G " + std::to_string(key);
+            int key = std::rand() % KEY_RANGE;
+            if (std::rand() % 100 < GET_PROBABILITY) {
+                optype = operation_type::GET;
+                to_server = "G " + std::to_string(key);
+            }
+            else {
+                optype = operation_type::PUT;
+                int value = std::rand() % VALUE_RANGE;
+                to_server = "P " + std::to_string(key) + " " + std::to_string(value);
+            }
+            // optype = operation_type::GET;
+            // to_server = "G " + std::to_string(key);
             
             // std::cout << "Connect: "
             // std::cout << "Request (" << nodes_info[key % nodes_info.size()].host <<  ") : { " << to_server << " }" << std::endl;
@@ -88,7 +88,8 @@ try_transaction:
             }
             else if (error) {
                 std::cerr << "Error app.cpp: " << error.message() << std::endl;
-                throw error;
+                // throw error;
+                return -1;
             }
 
             bool result = parse_response(buf, len, optype);
@@ -148,6 +149,7 @@ void print_results() {
 
 //returns a socket to the node responsible for that key
 tcp::socket connect_to_node(boost::asio::io_service& io, int key, std::vector<node_info> nodes) {
+
     tcp::resolver resolver(io);
     int node_id = (key % nodes.size());
     node_info node = nodes[node_id];

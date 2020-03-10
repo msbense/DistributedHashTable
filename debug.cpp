@@ -16,7 +16,7 @@ int main(int argc, char *argv[]) {
         tcp::resolver resolver(io);
 
         int key = atoi(argv[2]);
-        std::string port(std::to_string(key % 2 + 13));
+        std::string port(std::to_string(13));
         tcp::resolver::query query("localhost", port);
         tcp::resolver::iterator endpoint_iterator = resolver.resolve(query);
         tcp::socket socket(io);

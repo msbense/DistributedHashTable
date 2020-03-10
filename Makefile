@@ -1,4 +1,4 @@
-all: node app debug
+all: node app
 
 node: node.cpp tcp/tcp_connection.cpp map.cpp
 	g++ -std=c++11 node.cpp tcp/tcp_connection.cpp map.cpp -O3 -o ./obj64/node.o -lboost_system -lboost_thread -lpthread
