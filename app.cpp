@@ -32,7 +32,7 @@ typedef struct {
 } node_info;
 
 
-void print_results(void);
+void print_results(long);
 tcp::socket connect_to_node(boost::asio::io_service& io, int key, std::vector<node_info> nodes);
 bool parse_response(boost::array<char, 128>& buffer, size_t len, operation_type optype);
 std::vector<node_info> load_node_info(void);
@@ -55,8 +55,6 @@ int main(int argc, char *argv[]) {
         auto t1 = std::chrono::high_resolution_clock::now();
         for (int i = 0; i < NUM_OPERATIONS; i++) {
             
-            // if (i % 100 == 0)
-                // std::cout << i;
             std::string to_server = "";
             operation_type optype;
             
@@ -70,12 +68,7 @@ int main(int argc, char *argv[]) {
                 int value = std::rand() % VALUE_RANGE;
                 to_server = "P " + std::to_string(key) + " " + std::to_string(value);
             }
-            // optype = operation_type::GET;
-            // to_server = "G " + std::to_string(key);
             
-            // std::cout << "Connect: "
-            // std::cout << "Request (" << nodes_info[key % nodes_info.size()].host <<  ") : { " << to_server << " }" << std::endl;
-try_transaction:
             tcp::socket socket = connect_to_node(io, key, nodes_info);
             socket.write_some(boost::asio::buffer(to_server));
             
@@ -94,16 +87,12 @@ try_transaction:
 
             bool result = parse_response(buf, len, optype);
             if (!result) {
-                goto try_transaction;
+                // goto try_transaction;
             }
         }
         auto t2 = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2-t1).count();
-        print_results();
-        std::cout << "Duration: " << duration << " microseconds" << std::endl;
-        double throughput = NUM_OPERATIONS / (duration / 1E6);
-        std::cout << "Throughput: " << throughput << " operations / second" << std::endl;
-        std::cout << "Latency: " << 1 / throughput << " seconds / operation" << std::endl; 
+        long duration = std::chrono::duration_cast<std::chrono::microseconds>(t2-t1).count();
+        print_results(duration);
     }
     catch (std::exception& e) {
         std::cerr << "Error app.cpp ln108" << std::endl;
@@ -137,14 +126,18 @@ std::vector<node_info> load_node_info() {
     return ret;
 }
 
-void print_results() {
+void print_results(long duration) {
     std::cout << std::endl;
     std::cout << "Results (+ = successful): " << std::endl;
     std::cout << "+G: " << successful_gets << std::endl;
     std::cout << "-G: " << unsuccessful_gets << std::endl;
     std::cout << "+P: " << successful_puts << std::endl;
     std::cout << "-P: " << unsuccessful_puts << std::endl;
-    
+
+    std::cout << "Duration: " << duration << " microseconds" << std::endl;
+    double throughput = NUM_OPERATIONS / (duration / 1E6);
+    std::cout << "Throughput: " << throughput << " operations / second" << std::endl;
+    std::cout << "Latency: " << 1 / throughput << " seconds / operation" << std::endl; 
 }
 
 //returns a socket to the node responsible for that key
