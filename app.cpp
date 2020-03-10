@@ -1,15 +1,15 @@
 #include <iostream>
 #include <fstream>
 #include <chrono>
-#include <boost/array.hpp>
-#include <boost/asio.hpp>
 #include <string>
 #include <random>
 #include <vector>
+#include <boost/array.hpp>
+#include <boost/asio.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/ptr_container/ptr_vector.hpp>
 
 namespace fs = boost::filesystem;
-// namespace chrono = std::chrono;//::high_resolution_clock;
 using boost::asio::ip::tcp;
 
 // Parameters! :) 
@@ -24,16 +24,17 @@ int unsuccessful_puts = 0;
 int successful_gets = 0;
 int unsuccessful_gets = 0;
 
-enum operation_type { GET=0, PUT=1  };
+//Network stuff
+enum operation_type { GET=0, PUT=1, TALK=2 };
 typedef struct {
     int node_id;
     std::string host;
     std::string port;
 } node_info;
-
+boost::ptr_vector<tcp::socket> open_connections;
 
 void print_results(long);
-tcp::socket connect_to_node(boost::asio::io_service& io, int key, std::vector<node_info> nodes);
+tcp::socket *connect_to_node(boost::asio::io_service& io, int key, std::vector<node_info> nodes);
 bool parse_response(boost::array<char, 128>& buffer, size_t len, operation_type optype);
 std::vector<node_info> load_node_info(void);
 void print_nodes_info(std::vector<node_info> nodes);
@@ -42,7 +43,7 @@ int main(int argc, char *argv[]) {
     try {
 
         std::vector<node_info> nodes_info = load_node_info();
-        
+
         if (argc > 1) {
             NUM_OPERATIONS = atoi(argv[1]);
             KEY_RANGE = atoi(argv[2]);
@@ -69,12 +70,12 @@ int main(int argc, char *argv[]) {
                 to_server = "P " + std::to_string(key) + " " + std::to_string(value);
             }
             
-            tcp::socket socket = connect_to_node(io, key, nodes_info);
-            socket.write_some(boost::asio::buffer(to_server));
+            tcp::socket *socket = connect_to_node(io, key, nodes_info);
+            socket->write_some(boost::asio::buffer(to_server));
             
             boost::array<char, 128> buf;
             boost::system::error_code error;
-            size_t len = socket.read_some(boost::asio::buffer(buf), error);
+            size_t len = socket->read_some(boost::asio::buffer(buf), error);
             if (error == boost::asio::error::eof) {
                 std::cout << "EOF" << std::endl;
                 return 0;
@@ -98,6 +99,8 @@ int main(int argc, char *argv[]) {
         std::cerr << "Error app.cpp ln108" << std::endl;
         std::cerr << e.what() << std::endl;
     }
+
+    open_connections.clear();
 
 }
 
@@ -141,15 +144,20 @@ void print_results(long duration) {
 }
 
 //returns a socket to the node responsible for that key
-tcp::socket connect_to_node(boost::asio::io_service& io, int key, std::vector<node_info> nodes) {
-
+tcp::socket *connect_to_node(boost::asio::io_service& io, int key, std::vector<node_info> nodes) {
     tcp::resolver resolver(io);
     int node_id = (key % nodes.size());
     node_info node = nodes[node_id];
     tcp::resolver::query query(node.host, node.port);
     tcp::resolver::iterator endpoint_iterator = resolver.resolve(query);
-    tcp::socket socket(io);
-    boost::asio::connect(socket, endpoint_iterator);
+    
+    for (int i = 0; i < open_connections.size(); i++)
+        if (endpoint_iterator->endpoint() == open_connections[i].remote_endpoint())
+            return &open_connections[i];
+    
+    tcp::socket *socket = new tcp::socket(io);
+    boost::asio::connect(*socket, endpoint_iterator);
+    open_connections.push_back(socket);
     return socket;
 }
 
