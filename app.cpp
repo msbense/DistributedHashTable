@@ -96,12 +96,10 @@ int main(int argc, char *argv[]) {
         print_results(duration);
     }
     catch (std::exception& e) {
-        std::cerr << "Error app.cpp ln108" << std::endl;
         std::cerr << e.what() << std::endl;
     }
 
     open_connections.clear();
-
 }
 
 std::vector<node_info> load_node_info() {

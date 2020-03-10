@@ -6,12 +6,11 @@
 #include <boost/array.hpp>
 #include <boost/enable_shared_from_this.hpp>
 #include <boost/bind.hpp>
-#include "tcp/tcp_connection.cpp"
+#include "tcp_connection.cpp"
 #include "map.cpp"
          
-
 using boost::asio::ip::tcp;
-// pid_t gettid(void);
+
 
 template<class V> class Node {
 
@@ -23,48 +22,32 @@ template<class V> class Node {
     private:
     void start_accept() {
         while (true) {
-        // std::cerr << "Listening..." << std::endl;
             tcp_connection::pointer connection = tcp_connection::create(acceptor.get_io_service());
             acceptor.accept(connection->socket());
-            
             if (fork() == 0) {
-                // std::cerr << "Accepted connection "  << std::endl;
                 handle_accept(connection);
-                // std::cerr << "Ended connection "  << std::endl;
                 exit(0);
             }
-
-            // std::thread t(&Node<V>::handle_accept, connection);
         }
     }
 
-    void handle_accept(tcp_connection::pointer connection /*, const boost::system::error_code& error */) {
-        // std::cerr << "Accepted connection " << std::this_thread::get_id() << std::endl;
-        // if (!error) {
+    void handle_accept(tcp_connection::pointer connection) {
         tcp::socket& socket = connection->socket();
-        
-        boost::array<char, 64> buf;
-        boost::system::error_code error;
-        size_t len = socket.read_some(boost::asio::buffer(buf), error);
-        if (error) {  
-            std::cerr << "Error thrown in node.cpp ln52 when reading socket" << std::endl;
-            throw error; 
+        while (socket.is_open()) {
+            boost::array<char, 64> buf;
+            boost::system::error_code error;
+            size_t len = socket.read_some(boost::asio::buffer(buf), error);
+            if (error) {  
+                if (error == boost::asio::error::eof) 
+                    exit(0);
+                std::cerr << "Error thrown in node.cpp when reading socket: " << error.message() << std::endl;
+                throw error; 
+            }
+
+            std::string request(buf.begin(), len);
+            std::string response(get_response(request));
+            connection->start(response);
         }
-
-        std::string request(buf.begin(), len);
-        // std::cerr << "Request: { " << request << " }" << std::endl;
-
-        std::string response(get_response(request));
-        // std::cerr << "Response: { " << response << " }" << std::endl;
-        
-        connection->start(response);
-//         std::cerr << "Ended connection " << std::this_thread::get_id() << std::endl;
-
-        // }
-        // else 
-        // throw error;
-        
-        // continue_accept();
     }
 
     std::string get_response(std::string request_str) {
