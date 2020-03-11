@@ -4,6 +4,8 @@
 #include <string>
 #include <random>
 #include <vector>
+#include <mutex>
+#include <thread>
 #include <boost/array.hpp>
 #include <boost/asio.hpp>
 #include <boost/filesystem.hpp>
@@ -25,7 +27,7 @@ int successful_gets = 0;
 int unsuccessful_gets = 0;
 
 //Network stuff
-enum operation_type { GET=0, PUT=1, TALK=2 };
+enum operation_type { GET=0, PUT=1 };
 typedef struct {
     int node_id;
     std::string host;
@@ -40,6 +42,7 @@ std::vector<node_info> load_node_info(void);
 void print_nodes_info(std::vector<node_info> nodes);
 
 int main(int argc, char *argv[]) {
+
     try {
 
         std::vector<node_info> nodes_info = load_node_info();
@@ -50,7 +53,6 @@ int main(int argc, char *argv[]) {
         }
 
         boost::asio::io_service io;
-        
         print_nodes_info(nodes_info);
 
         auto t1 = std::chrono::high_resolution_clock::now();
@@ -60,6 +62,7 @@ int main(int argc, char *argv[]) {
             operation_type optype;
             
             int key = std::rand() % KEY_RANGE;
+            // int key = 5;
             if (std::rand() % 100 < GET_PROBABILITY) {
                 optype = operation_type::GET;
                 to_server = "G " + std::to_string(key);
@@ -69,7 +72,7 @@ int main(int argc, char *argv[]) {
                 int value = std::rand() % VALUE_RANGE;
                 to_server = "P " + std::to_string(key) + " " + std::to_string(value);
             }
-            
+try_transaction:
             tcp::socket *socket = connect_to_node(io, key, nodes_info);
             socket->write_some(boost::asio::buffer(to_server));
             
@@ -88,7 +91,7 @@ int main(int argc, char *argv[]) {
 
             bool result = parse_response(buf, len, optype);
             if (!result) {
-                // goto try_transaction;
+                goto try_transaction;
             }
         }
         auto t2 = std::chrono::high_resolution_clock::now();
