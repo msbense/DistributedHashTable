@@ -62,7 +62,6 @@ int main(int argc, char *argv[]) {
             operation_type optype;
             
             int key = std::rand() % KEY_RANGE;
-            // int key = 5;
             if (std::rand() % 100 < GET_PROBABILITY) {
                 optype = operation_type::GET;
                 to_server = "G " + std::to_string(key);

@@ -36,13 +36,8 @@ template<class V> class Node {
     }
 
     void handle_accept(tcp_connection::pointer connection) {
-        // std::cerr << "Here2 "<< std::endl;
-        // std::thread t(&Node::start_accept, this);
-        // t.detach();
         tcp::socket& socket = connection->socket();
-        // std::cerr << "Here3 "<< std::endl;
         while (socket.is_open()) {
-            // std::cerr << "Here4 "<< std::endl;
             boost::array<char, 64> buf;
             boost::system::error_code error;
             size_t len = socket.read_some(boost::asio::buffer(buf), error);
@@ -52,7 +47,6 @@ template<class V> class Node {
                 std::cerr << "Error thrown in node.cpp when reading socket: " << error.message() << std::endl;
                 throw error; 
             }
-            // std::cerr << "Here5 "<< std::endl;
 
             std::string request(buf.begin(), len);
             std::string response(get_response(request));
@@ -73,7 +67,6 @@ template<class V> class Node {
                 {
                     int key = std::stoi(request_str.substr(2));
                     V value = map.get(key);
-                    // if (!value) { ret = "0"; } else { ret = "1 " + std::to_string(value); }
                     ret = (!value) ? "0" : ("1 " + std::to_string(value));
                 }
                 break;
@@ -84,8 +77,6 @@ template<class V> class Node {
                     V value = std::stoi(request_str.substr(v_idx));
                     bool res = map.put(key, value);
                     ret = (res == false) ? "0" : "1";
-                    // if (!res) 
-                    // std::cerr << "PID: " << getpid() <<  " ret: " << ret << std::endl;
                 }   
                 break;
             default:
