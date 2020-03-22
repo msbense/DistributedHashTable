@@ -2,6 +2,7 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <algorithm>
 #include <boost/asio.hpp>
 #include <boost/array.hpp>
 #include <boost/enable_shared_from_this.hpp>
@@ -9,30 +10,30 @@
 #include <boost/thread/thread.hpp>
 #include "tcp_connection.cpp"
 #include "map.cpp"
-
          
 using boost::asio::ip::tcp;
-
 
 template<class V> class Node {
 
     public:
-    Node(boost::asio::io_service& io_service, int port) : acceptor(io_service, tcp::endpoint(tcp::v4(), port)) {
-        
-        // for (int i = 0; i < THREAD_COUNT; i++) 
-        //     thread_pool.create_thread(boost::bind(&boost::asio::io_service::run, &io_service));
-
+    Node(boost::asio::io_service& io_service, int port) 
+        : acceptor(io_service, tcp::endpoint(tcp::v4(), port)) {
         start_accept();
     }
 
     private:
     void start_accept() {
+        std::vector<std::thread> threads;
+        
         while (true) {
             tcp_connection::pointer connection = tcp_connection::create(acceptor.get_io_service());
             acceptor.accept(connection->socket());
             std::thread t(&Node::handle_accept, this, connection);
-            t.detach();
+            threads.push_back(std::move(t));
         }
+        
+        auto join = [](std::thread &t) { t.join(); };
+        std::for_each(threads.begin(), threads.end(), join);
     }
 
     void handle_accept(tcp_connection::pointer connection) {
@@ -53,7 +54,6 @@ template<class V> class Node {
             connection->start(response);
         }
         
-        // t.join();
     }
 
     std::string get_response(std::string request_str) {
@@ -85,11 +85,8 @@ template<class V> class Node {
         return ret;
     }
 
-    // const int THREAD_COUNT = 10;
     HashMap<int> map;
-    // boost::asio::io_service io_service;
     tcp::acceptor acceptor;
-    // boost::thread_pool thread_pool;
 };
 
 int main(int argc, char **argv) {
@@ -99,11 +96,9 @@ int main(int argc, char **argv) {
             port = atoi(argv[1]);
         }
         boost::asio::io_service io_service;
-        // boost::asio::io_service::work work(io_service);
         Node<int> n(io_service, port);
 
         io_service.run();
-        // io_service.stop();
         
     }
     catch (std::exception& e) {
