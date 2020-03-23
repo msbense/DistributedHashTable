@@ -17,6 +17,7 @@ using boost::asio::ip::tcp;
 // Parameters! :) 
 const int GET_PROBABILITY = 70;
 int NUM_OPERATIONS = 100;
+int NUM_THREADS = 5;
 int KEY_RANGE = 100;
 int VALUE_RANGE = 1000;
 
@@ -33,13 +34,19 @@ typedef struct {
     std::string host;
     std::string port;
 } node_info;
-boost::ptr_vector<tcp::socket> open_connections;
+
+typedef struct {
+    tcp::socket *socket;
+    std::mutex *mutex;
+} connection_info;
+boost::ptr_vector<connection_info> open_connections;
 
 void print_results(long);
-tcp::socket *connect_to_node(boost::asio::io_service& io, int key, std::vector<node_info> nodes);
+connection_info *connect_to_node(boost::asio::io_service& io, int key, std::vector<node_info> nodes);
 bool parse_response(boost::array<char, 128>& buffer, size_t len, operation_type optype);
 std::vector<node_info> load_node_info(void);
 void print_nodes_info(std::vector<node_info> nodes);
+int make_transactions(std::vector<node_info> nodes_info, boost::asio::io_service &io);
 
 int main(int argc, char *argv[]) {
 
@@ -56,43 +63,16 @@ int main(int argc, char *argv[]) {
         print_nodes_info(nodes_info);
 
         auto t1 = std::chrono::high_resolution_clock::now();
-        for (int i = 0; i < NUM_OPERATIONS; i++) {
-            
-            std::string to_server = "";
-            operation_type optype;
-            
-            int key = std::rand() % KEY_RANGE;
-            if (std::rand() % 100 < GET_PROBABILITY) {
-                optype = operation_type::GET;
-                to_server = "G " + std::to_string(key);
-            }
-            else {
-                optype = operation_type::PUT;
-                int value = std::rand() % VALUE_RANGE;
-                to_server = "P " + std::to_string(key) + " " + std::to_string(value);
-            }
-try_transaction:
-            tcp::socket *socket = connect_to_node(io, key, nodes_info);
-            socket->write_some(boost::asio::buffer(to_server));
-            
-            boost::array<char, 128> buf;
-            boost::system::error_code error;
-            size_t len = socket->read_some(boost::asio::buffer(buf), error);
-            if (error == boost::asio::error::eof) {
-                std::cout << "EOF" << std::endl;
-                return 0;
-            }
-            else if (error) {
-                std::cerr << "Error app.cpp: " << error.message() << std::endl;
-                // throw error;
-                return -1;
-            }
-
-            bool result = parse_response(buf, len, optype);
-            if (!result) {
-                goto try_transaction;
-            }
+        
+        std::vector<std::thread> threads;
+        auto func = [&]{make_transactions(nodes_info, io);};
+        for (int i = 0; i < NUM_THREADS; i++) {
+            std::thread t(func);
+            threads.push_back(std::move(t));
         }
+        auto join = [](std::thread &t) { t.join(); };
+        std::for_each(threads.begin(), threads.end(), join);
+        
         auto t2 = std::chrono::high_resolution_clock::now();
         long duration = std::chrono::duration_cast<std::chrono::microseconds>(t2-t1).count();
         print_results(duration);
@@ -104,11 +84,52 @@ try_transaction:
     open_connections.clear();
 }
 
+int make_transactions(std::vector<node_info> nodes_info, boost::asio::io_service &io) {
+    for (int i = 0; i < NUM_OPERATIONS; i++) {
+        std::string to_server = "";
+        operation_type optype;
+        
+        int key = std::rand() % KEY_RANGE;
+        if (std::rand() % 100 < GET_PROBABILITY) {
+            optype = operation_type::GET;
+            to_server = "G " + std::to_string(key);
+        }
+        else {
+            optype = operation_type::PUT;
+            int value = std::rand() % VALUE_RANGE;
+            to_server = "P " + std::to_string(key) + " " + std::to_string(value);
+        }
+try_transaction:
+        connection_info *connection = connect_to_node(io, key, nodes_info);
+        connection->mutex->lock();
+        connection->socket->write_some(boost::asio::buffer(to_server));
+        
+        boost::array<char, 128> buf;
+        boost::system::error_code error;
+        size_t len = connection->socket->read_some(boost::asio::buffer(buf), error);
+        connection->mutex->unlock();
+        if (error == boost::asio::error::eof) {
+            std::cout << "EOF" << std::endl;
+            return -1;
+        }
+        else if (error) {
+            std::cerr << "Error app.cpp: " << error.message() << std::endl;
+            return -2;
+        }
+
+        bool result = parse_response(buf, len, optype);
+        if (!result) {
+            goto try_transaction;
+        }
+    }
+    return 0;
+}
+
 std::vector<node_info> load_node_info() {
     std::ifstream in("node_info.txt");
     std::stringstream sstr;
     sstr << in.rdbuf();
-    std::string ni_str(sstr.str());
+    std::string ni_str(sstr.str()); 
 
     std::vector<node_info> ret;
     std::vector<std::string> node_strs;
@@ -144,21 +165,24 @@ void print_results(long duration) {
 }
 
 //returns a socket to the node responsible for that key
-tcp::socket *connect_to_node(boost::asio::io_service& io, int key, std::vector<node_info> nodes) {
+connection_info *connect_to_node(boost::asio::io_service& io, int key, std::vector<node_info> nodes) {
     tcp::resolver resolver(io);
     int node_id = (key % nodes.size());
     node_info node = nodes[node_id];
     tcp::resolver::query query(node.host, node.port);
     tcp::resolver::iterator endpoint_iterator = resolver.resolve(query);
     
-    for (int i = 0; i < open_connections.size(); i++)
-        if (endpoint_iterator->endpoint() == open_connections[i].remote_endpoint())
+    for (int i = 0; i < open_connections.size(); i++) {
+        if (endpoint_iterator->endpoint() == open_connections[i].socket->remote_endpoint()) {
             return &open_connections[i];
-    
-    tcp::socket *socket = new tcp::socket(io);
-    boost::asio::connect(*socket, endpoint_iterator);
-    open_connections.push_back(socket);
-    return socket;
+        }
+    }
+    connection_info *connection = new connection_info();
+    connection->socket = new tcp::socket(io);
+    connection->mutex = new std::mutex();
+    boost::asio::connect(*(connection->socket), endpoint_iterator);
+    open_connections.push_back(connection);
+    return connection;
 }
 
 bool parse_response(boost::array<char, 128>& buffer, size_t len, operation_type optype) {
