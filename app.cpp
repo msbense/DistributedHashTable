@@ -17,7 +17,7 @@ using boost::asio::ip::tcp;
 // Parameters! :) 
 const int GET_PROBABILITY = 70;
 int NUM_OPERATIONS = 100;
-int NUM_THREADS = 5;
+int NUM_THREADS = 8;
 int KEY_RANGE = 100;
 int VALUE_RANGE = 1000;
 
@@ -38,6 +38,7 @@ typedef struct {
 typedef struct {
     tcp::socket *socket;
     std::mutex *mutex;
+    int node_id;
 } connection_info;
 boost::ptr_vector<connection_info> open_connections;
 
@@ -101,13 +102,15 @@ int make_transactions(std::vector<node_info> nodes_info, boost::asio::io_service
         }
 try_transaction:
         connection_info *connection = connect_to_node(io, key, nodes_info);
+        // connection->mutex->lock();
+        
         connection->mutex->lock();
         connection->socket->write_some(boost::asio::buffer(to_server));
-        
         boost::array<char, 128> buf;
         boost::system::error_code error;
         size_t len = connection->socket->read_some(boost::asio::buffer(buf), error);
         connection->mutex->unlock();
+
         if (error == boost::asio::error::eof) {
             std::cout << "EOF" << std::endl;
             return -1;
@@ -166,6 +169,9 @@ void print_results(long duration) {
 
 //returns a socket to the node responsible for that key
 connection_info *connect_to_node(boost::asio::io_service& io, int key, std::vector<node_info> nodes) {
+    static std::mutex mtx;
+    const std::lock_guard<std::mutex> lock(mtx);
+    
     tcp::resolver resolver(io);
     int node_id = (key % nodes.size());
     node_info node = nodes[node_id];
@@ -180,6 +186,7 @@ connection_info *connect_to_node(boost::asio::io_service& io, int key, std::vect
     connection_info *connection = new connection_info();
     connection->socket = new tcp::socket(io);
     connection->mutex = new std::mutex();
+    connection->node_id = node_id;
     boost::asio::connect(*(connection->socket), endpoint_iterator);
     open_connections.push_back(connection);
     return connection;
