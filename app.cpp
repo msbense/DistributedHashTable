@@ -280,7 +280,7 @@ connection_info *connect_to_node(boost::asio::io_service& io, int key, std::vect
     }
     connection_info *connection = new connection_info();
     connection->socket = new tcp::socket(io);
-    connection->mutex = new std::mutex();
+    connection->mutex = new std::recursive_mutex();
     connection->node_id = node_id;
     boost::asio::connect(*(connection->socket), endpoint_iterator);
     open_connections.push_back(connection);

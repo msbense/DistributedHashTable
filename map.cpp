@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <sys/types.h> 
 
+//TODO change to hash on something other than direct key value, to avoid skew
 template <class V> class HashMap {
 
     public:

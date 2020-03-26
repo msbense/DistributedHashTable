@@ -13,6 +13,7 @@
          
 using boost::asio::ip::tcp;
 
+//TODO two phase commit node side
 template<class V> class Node {
 
     public:
@@ -56,6 +57,8 @@ template<class V> class Node {
         
     }
 
+    //TODO Handle multiput
+    //TODO Handle failed gets due to contention
     std::string get_response(std::string request_str) {
         std::string ret = "";
 
