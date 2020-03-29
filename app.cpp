@@ -21,7 +21,7 @@ using boost::asio::ip::tcp;
 const int REPLICATION = 1;
 const int GET_PROBABILITY = 60;
 const int MULTIPUT_PROBABILITY = 0;
-int NUM_OPERATIONS = 100;
+int NUM_OPERATIONS = 100; //per thread
 int NUM_THREADS = 8;
 int KEY_RANGE = 100;
 int VALUE_RANGE = 1000;
@@ -29,6 +29,8 @@ int VALUE_RANGE = 1000;
 // Data :D 
 int successful_puts = 0;
 int unsuccessful_puts = 0;
+int successful_multiputs = 0;
+int unsuccessful_multiputs = 0;
 int successful_gets = 0;
 int unsuccessful_gets = 0;
 
@@ -54,11 +56,16 @@ boost::ptr_vector<connection_info> open_connections;
 
 void print_results(long);
 connection_info *connect_to_node(boost::asio::io_service& io, int key, std::vector<node_info> nodes);
-bool parse_response(boost::array<char, 128>& buffer, size_t len, operation_type optype);
+bool parse_response(std::string s, operation_type optype);
 std::vector<node_info> load_node_info(void);
 void print_nodes_info(std::vector<node_info> nodes);
-void make_transactions(boost::asio::io_service &io, std::vector<node_info> nodes_info);
+void make_transactions(boost::asio::io_service &io, std::vector<node_info> nodes_info, int n_ops);
 int transaction(boost::asio::io_service &io, std::vector<node_info> nodes_info);
+int get(boost::asio::io_service &io, std::vector<node_info> nodes_info);
+int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, int n);
+void send_message(connection_info* c, std::string m);
+std::string receive_message(connection_info* c);
+int node_for_key(int key, std::vector<node_info> nodes_info);
 
 operation_type get_operation();
 std::vector<std::pair<int,int>> generate_keys_val_pairs(operation_type optype);
@@ -78,7 +85,7 @@ int main(int argc, char *argv[]) {
     
         std::vector<std::thread> threads;
         for (int i = 0; i < NUM_THREADS; i++) {
-            std::thread t([&]{ make_transactions(io, nodes_info); });
+            std::thread t([&]{ make_transactions(io, nodes_info, NUM_OPERATIONS / NUM_THREADS); });
             threads.push_back(std::move(t));
         }
         std::for_each(threads.begin(), threads.end(), 
@@ -97,8 +104,8 @@ int main(int argc, char *argv[]) {
     open_connections.clear();
 }
 
-void make_transactions(boost::asio::io_service &io, std::vector<node_info> nodes_info) {
-    for (int i = 0; i < NUM_OPERATIONS; i++) {
+void make_transactions(boost::asio::io_service &io, std::vector<node_info> nodes_info, int n_ops) {
+    for (int i = 0; i < n_ops; i++) {
         int result = 0;
         while (result == 0) {
             result = transaction(io, nodes_info);
@@ -111,69 +118,113 @@ void make_transactions(boost::asio::io_service &io, std::vector<node_info> nodes
 
 //TODO two phase commit client side
 //TODO parallelize
-#pragma region transaction_rewrite
-int new_transaction(boost::asio::io_service &io, std::vector<node_info> nodes_info) {
+int transaction(boost::asio::io_service &io, std::vector<node_info> nodes_info) {
+    operation_type optype = get_operation();
+    int result = 0;
+    switch(optype) {
+        case GET:
+            result = get(io, nodes_info);
+            break;
+        case PUT:
+            result = put(io,nodes_info, /*nkeys=*/ 1);
+            break;
+        case MULTIPUT:
+            result = put(io, nodes_info, /*nkeys=*/ 3);
+            break;
+    }
+    return result;
+}
+
+int get(boost::asio::io_service &io, std::vector<node_info> nodes_info) {
+    int result = 0;
+
+    int key = std::rand() % KEY_RANGE;
+    std::string request_str = "G " + std::to_string(key);
+    int node_id = node_for_key(key, nodes_info);
+    connection_info* con = connect_to_node(io, key, nodes_info);
+    con->mutex->lock();
+    send_message(con, request_str);
+    std::string response = receive_message(con);
+    con->mutex->unlock();
+    result = parse_response(response, GET);
+
+    return result;
+}
+
+int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, int n) {
 
     //Decide on an operation
     operation_type optype = get_operation();
-    std::vector<std::pair<int, int>> key_values = generate_keys_val_pairs(optype);
+    std::vector<std::pair<int, int>> key_values;
+    for (int i = 0; i < n; i++) {
+        int key = std::rand() % KEY_RANGE;
+        int value = std::rand() % VALUE_RANGE;
+        key_values.push_back(std::pair<int, int>(key, value));
+    }
 
     //Build connection strings, lock both local and server
     std::vector<std::pair<connection_info*, std::string>> operations;
-    std::vector<std::pair<int, int>> node_locks; //For keeping track of server-side locks
-    bool put_failed = false;
+    std::vector<std::pair<connection_info*, int>> node_locks; //For keeping track of server-side locks
+    bool transaction_failed = false;
     for (auto p = key_values.begin(); p != key_values.end(); p++) {
+        if(transaction_failed) break;
+
         for (int i = 0; i < REPLICATION; i++) {
-            std::string req_str = build_request_str(optype, p->first, p->second);
-            int node_id = (p->first + i) % nodes_info.size();
-            connection_info* con = new_connect_to_node(io, node_id, nodes_info);
+            std::string req_str = "P " + std::to_string(p->first) + " " + std::to_string(p->second);
+            connection_info* con = connect_to_node(io, p->first + i, nodes_info);
             operations.push_back(std::pair<connection_info*, std::string>(con, req_str));
             con->mutex->lock();
-            if (optype == operation_type::GET) {
-                continue;
-            }
-            std::string node_lock_request = "Lock " + p->first;
-            if (std::find(node_locks.begin(), node_locks.end(), std::pair<int,int>(node_id, p->first)) == node_locks.end()) {
-                node_locks.push_back(std::pair<int, int>(node_id, p->first));
-                std::string response = send_message(con, node_lock_request);
-                if (response.compare("0")) {
-                    put_failed = true;
+            if (std::find(node_locks.begin(), node_locks.end(), std::pair<connection_info*,int>(con, p->first)) == node_locks.end()) {
+                node_locks.push_back(std::pair<connection_info*, int>(con, p->first));
+                send_message(con, "Lock " + p->first);
+                std::string response = receive_message(con);
+                if (response.compare("0") == 0) {
+                    transaction_failed = true;
+                    con->mutex->unlock();
+                    node_locks.erase(node_locks.end() - 1);
                     break;
                 }
             }
         }
     }
 
-    if (put_failed) {
+    //unlock all server-side locks, return and try again
+    if (transaction_failed) {
         for (auto p = node_locks.begin(); p < node_locks.end(); p++) {
-            for (auto con = open_connections.begin(); con < open_connections.end(); con++) {
-                if (p->first == con->node_id) {
-                    send_message(con, )
-                }
-            }
+            send_message(p->first, "Unlock " + p->second);
+            p->first->mutex->unlock();
         }
+        return 0;
     }
 
-    //Send messages
+    //Perform operations
     std::for_each(operations.begin(), operations.end(), 
         [&](std::pair<connection_info*, std::string> &p){
-            bool result = false;
-            while (result == false) {
-                send_message(p.second);
-                result = new_parse_response();
-            }
+            send_message(p.first, p.second);
+            std::string response = receive_message(p.first);
+            parse_response(response, (n == 1) ? PUT : MULTIPUT);
         });
-
+    
+    
     //Unlock connections (server-side locks are unlocked upon finish)
     std::for_each(operations.begin(), operations.end(), 
         [&](std::pair<connection_info*, std::string> &p) {
-            p.first->socket->write_some(boost::asio::buffer("Unlock " + p.second));
+            send_message(p.first, "Unlock " + p.second);
             p.first->mutex->unlock();
         });
+    
+    return 1;
 }
 
-std::string send_message(connection_info *connection, std::string message) {
+int node_for_key(int key, std::vector<node_info> nodes_info) {
+    return key % nodes_info.size();
+}
+
+void send_message(connection_info *connection, std::string message) {
     connection->socket->write_some(boost::asio::buffer(message));
+}
+
+std::string receive_message(connection_info* connection) {
     boost::array<char, 128> buf;
     boost::system::error_code error;
     size_t len = connection->socket->read_some(boost::asio::buffer(buf), error);
@@ -193,30 +244,6 @@ std::string send_message(connection_info *connection, std::string message) {
     return std::string(buf.data(), len);
 }
 
-//TODO write function
-connection_info* new_connect_to_node(boost::asio::io_service &io, int node_id, std::vector<node_info> nodes) {
-    static std::mutex mtx;
-    const std::lock_guard<std::mutex> lock(mtx);
-    
-    tcp::resolver resolver(io);
-    node_info node = nodes[node_id];
-    tcp::resolver::query query(node.host, node.port);
-    tcp::resolver::iterator endpoint_iterator = resolver.resolve(query);
-    
-    for (int i = 0; i < open_connections.size(); i++) {
-        if (endpoint_iterator->endpoint() == open_connections[i].socket->remote_endpoint()) {
-            return &open_connections[i];
-        }
-    }
-    connection_info *connection = new connection_info();
-    connection->socket = new tcp::socket(io);
-    connection->mutex = new std::recursive_mutex();
-    connection->node_id = node_id;
-    boost::asio::connect(*(connection->socket), endpoint_iterator);
-    open_connections.push_back(connection);
-    return connection;
-}
-
 operation_type get_operation() {
     if (std::rand() % 100 < GET_PROBABILITY) {
         return operation_type::GET;
@@ -231,76 +258,67 @@ operation_type get_operation() {
     }
 }
 
-//TODO write function
-std::vector<std::pair<int,int>> generate_keys_val_pairs(operation_type optype) {}
 
-//TODO write function
-std::string build_request_str(operation_type optype, int key, int value) {}
-
-//TODO write function
-bool new_parse_response(std::string response_str) {}
-#pragma endregion
-
-int transaction(boost::asio::io_service &io, std::vector<node_info> nodes_info) {
-    std::string to_server = "";
-    operation_type optype;
+// int old_transaction(boost::asio::io_service &io, std::vector<node_info> nodes_info) {
+//     std::string to_server = "";
+//     operation_type optype;
         
-    int key = std::rand() % KEY_RANGE;
-    if (std::rand() % 100 < GET_PROBABILITY) {
-        optype = operation_type::GET;
-        to_server = "G " + std::to_string(key);
-    }
-    else {
-        if (std::rand() % 100 < MULTIPUT_PROBABILITY) {
-            // optype = operation_type::MULTIPUT;
-            int key2 = std::rand() % KEY_RANGE;
-            int key3 = std::rand() % KEY_RANGE;
-            int val1 = std::rand() % VALUE_RANGE;
-            int val2 = std::rand() % VALUE_RANGE;
-            int val3 = std::rand() % VALUE_RANGE;
-            std::stringstream sstr;
-            sstr << "M " << std::to_string(key) << " " << std::to_string(val1);
-            sstr << " " << std::to_string(key2) << " " << std::to_string(val2);
-            sstr << " " << std::to_string(key3) << " " << std::to_string(val3);
-            to_server = sstr.str();
-        }
-        else {
-            optype = operation_type::PUT;
-            int value = std::rand() % VALUE_RANGE;
-            to_server = "P " + std::to_string(key) + " " + std::to_string(value);
-        }
-    }
+//     int key = std::rand() % KEY_RANGE;
+//     if (std::rand() % 100 < GET_PROBABILITY) {
+//         optype = operation_type::GET;
+//         to_server = "G " + std::to_string(key);
+//     }
+//     else {
+//         if (std::rand() % 100 < MULTIPUT_PROBABILITY) {
+//             // optype = operation_type::MULTIPUT;
+//             int key2 = std::rand() % KEY_RANGE;
+//             int key3 = std::rand() % KEY_RANGE;
+//             int val1 = std::rand() % VALUE_RANGE;
+//             int val2 = std::rand() % VALUE_RANGE;
+//             int val3 = std::rand() % VALUE_RANGE;
+//             std::stringstream sstr;
+//             sstr << "M " << std::to_string(key) << " " << std::to_string(val1);
+//             sstr << " " << std::to_string(key2) << " " << std::to_string(val2);
+//             sstr << " " << std::to_string(key3) << " " << std::to_string(val3);
+//             to_server = sstr.str();
+//         }
+//         else {
+//             optype = operation_type::PUT;
+//             int value = std::rand() % VALUE_RANGE;
+//             to_server = "P " + std::to_string(key) + " " + std::to_string(value);
+//         }
+//     }
 
-    connection_info *connection = connect_to_node(io, key, nodes_info);
+//     connection_info *connection = connect_to_node(io, key, nodes_info);
         
-    connection->mutex->lock();
-    connection->socket->write_some(boost::asio::buffer(to_server));
-    boost::array<char, 128> buf;
-    boost::system::error_code error;
-    size_t len = connection->socket->read_some(boost::asio::buffer(buf), error);
-    connection->mutex->unlock();
+//     connection->mutex->lock();
+//     connection->socket->write_some(boost::asio::buffer(to_server));
+//     boost::array<char, 128> buf;
+//     boost::system::error_code error;
+//     size_t len = connection->socket->read_some(boost::asio::buffer(buf), error);
+//     connection->mutex->unlock();
 
-    if (error == boost::asio::error::eof) {
-        std::stringstream sstr;
-        sstr << "EOF when reading from node " << connection->node_id << std::endl;
-        std::cerr << sstr.str();
-        return -1;
-    }
-    else if (error) {
-        std::stringstream sstr;
-        sstr << "Error app.cpp: " << error.message() << " when connecting to node " << 
-            connection->node_id << std::endl;
-        std::cerr << sstr.str();
-        return -2;
-    }
+//     if (error == boost::asio::error::eof) {
+//         std::stringstream sstr;
+//         sstr << "EOF when reading from node " << connection->node_id << std::endl;
+//         std::cerr << sstr.str();
+//         return -1;
+//     }
+//     else if (error) {
+//         std::stringstream sstr;
+//         sstr << "Error app.cpp: " << error.message() << " when connecting to node " << 
+//             connection->node_id << std::endl;
+//         std::cerr << sstr.str();
+//         return -2;
+//     }
 
-    bool result = parse_response(buf, len, optype);
+//     bool result = parse_response(buf, len, optype);
     
-    if (result == false)
-        return 0;
-    else return 1;
+//     if (result == false)
+//         return 0;
+//     else return 1;
     
-}
+// }
 
 std::vector<node_info> load_node_info() {
     std::ifstream in("node_info.txt");
@@ -329,10 +347,12 @@ std::vector<node_info> load_node_info() {
 void print_results(long duration) {
     std::cout << std::endl;
     std::cout << "Results (+ = successful): " << std::endl;
-    std::cout << "+G: " << successful_gets << std::endl;
-    std::cout << "-G: " << unsuccessful_gets << std::endl;
-    std::cout << "+P: " << successful_puts << std::endl;
-    std::cout << "-P: " << unsuccessful_puts << std::endl;
+    std::cout << "+G:  " << successful_gets << std::endl;
+    std::cout << "-G:  " << unsuccessful_gets << std::endl;
+    std::cout << "+P:  " << successful_puts << std::endl;
+    std::cout << "-P:  " << unsuccessful_puts << std::endl;
+    std::cout << "+MP: " << successful_multiputs << std::endl;
+    std::cout << "-MP: " << unsuccessful_multiputs << std::endl;
 
     std::cout << "Duration: " << duration << " microseconds" << std::endl;
     double throughput = NUM_OPERATIONS / (duration / 1E6);
@@ -365,12 +385,13 @@ connection_info *connect_to_node(boost::asio::io_service& io, int key, std::vect
     return connection;
 }
 
-bool parse_response(boost::array<char, 128>& buffer, size_t len, operation_type optype) {
-    std::string response_string(buffer.data(), len);
-    // std::cout << "Response: { " << response_string << " }" << std::endl;
+bool parse_response(std::string response_string, operation_type optype) {
     switch (optype) {
         case GET:
-            if (response_string[0] == '0') unsuccessful_gets++;
+            if (response_string[0] == '0') {
+                unsuccessful_gets++;
+                return false;
+            }
             else successful_gets++;
             break;
         case PUT:
@@ -379,6 +400,13 @@ bool parse_response(boost::array<char, 128>& buffer, size_t len, operation_type 
                 return false;
             }
             else successful_puts++;
+            break;
+        case MULTIPUT:
+            if (response_string[0] == '0') {
+                unsuccessful_multiputs++;
+                return false;
+            }
+            else successful_multiputs++;
             break;
         default:
             break;
