@@ -258,68 +258,6 @@ operation_type get_operation() {
     }
 }
 
-
-// int old_transaction(boost::asio::io_service &io, std::vector<node_info> nodes_info) {
-//     std::string to_server = "";
-//     operation_type optype;
-        
-//     int key = std::rand() % KEY_RANGE;
-//     if (std::rand() % 100 < GET_PROBABILITY) {
-//         optype = operation_type::GET;
-//         to_server = "G " + std::to_string(key);
-//     }
-//     else {
-//         if (std::rand() % 100 < MULTIPUT_PROBABILITY) {
-//             // optype = operation_type::MULTIPUT;
-//             int key2 = std::rand() % KEY_RANGE;
-//             int key3 = std::rand() % KEY_RANGE;
-//             int val1 = std::rand() % VALUE_RANGE;
-//             int val2 = std::rand() % VALUE_RANGE;
-//             int val3 = std::rand() % VALUE_RANGE;
-//             std::stringstream sstr;
-//             sstr << "M " << std::to_string(key) << " " << std::to_string(val1);
-//             sstr << " " << std::to_string(key2) << " " << std::to_string(val2);
-//             sstr << " " << std::to_string(key3) << " " << std::to_string(val3);
-//             to_server = sstr.str();
-//         }
-//         else {
-//             optype = operation_type::PUT;
-//             int value = std::rand() % VALUE_RANGE;
-//             to_server = "P " + std::to_string(key) + " " + std::to_string(value);
-//         }
-//     }
-
-//     connection_info *connection = connect_to_node(io, key, nodes_info);
-        
-//     connection->mutex->lock();
-//     connection->socket->write_some(boost::asio::buffer(to_server));
-//     boost::array<char, 128> buf;
-//     boost::system::error_code error;
-//     size_t len = connection->socket->read_some(boost::asio::buffer(buf), error);
-//     connection->mutex->unlock();
-
-//     if (error == boost::asio::error::eof) {
-//         std::stringstream sstr;
-//         sstr << "EOF when reading from node " << connection->node_id << std::endl;
-//         std::cerr << sstr.str();
-//         return -1;
-//     }
-//     else if (error) {
-//         std::stringstream sstr;
-//         sstr << "Error app.cpp: " << error.message() << " when connecting to node " << 
-//             connection->node_id << std::endl;
-//         std::cerr << sstr.str();
-//         return -2;
-//     }
-
-//     bool result = parse_response(buf, len, optype);
-    
-//     if (result == false)
-//         return 0;
-//     else return 1;
-    
-// }
-
 std::vector<node_info> load_node_info() {
     std::ifstream in("node_info.txt");
     std::stringstream sstr;
