@@ -52,12 +52,12 @@ template<class V> class Node {
 
             std::string request(buf.begin(), len);
             std::string response(get_response(request));
-            connection->start(response);
+            if (response.compare("") != 0)
+                connection->start(response);
         }
         
     }
 
-    //TODO Handle multiput
     //TODO Handle failed gets due to contention
     std::string get_response(std::string request_str) {
         std::string ret = "";
@@ -81,6 +81,19 @@ template<class V> class Node {
                     bool res = map.put(key, value);
                     ret = (res == false) ? "0" : "1";
                 }   
+                break;
+            case 'L':
+                {
+                    int key = std::stio(request_str(2));
+                    bool res = map.try_lock(key);
+                    ret = (res == false) ? "0" : "1";
+                }
+                break;
+            case 'U':
+                {
+                    int key = std::stio(request_str(2));
+                    map.unlock(key);
+                }
                 break;
             default:
                 break;

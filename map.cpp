@@ -32,6 +32,17 @@ template <class V> class HashMap {
         return false;
      }
 
+     bool try_lock(int key) {
+         if (lock.try_lock()) {
+             return true;
+         }
+         return false;
+     }
+
+     void unlock(int key) {
+         lock.unlock();
+     }
+
     private:
     boost::unordered_map<int, V> map;
     std::mutex lock;
