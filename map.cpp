@@ -1,5 +1,6 @@
 #include <iostream>
 #include <boost/unordered_map.hpp>
+#include <boost/ptr_container/ptr_vector.hpp>
 #include <mutex>
 #include <chrono>
 #include <thread>
@@ -9,9 +10,16 @@
 //TODO change to hash on something other than direct key value, to avoid skew
 template <class V> class HashMap {
 
+    const int NUM_LOCKS = 10;
     public:
     HashMap() {
-        
+        for (int i = 0; i < NUM_LOCKS; i++) {
+            lock_list.push_back(new std::mutex());
+        }
+    }
+
+    ~HashMap() {
+        lock_list.clear();
     }
 
     V get(int key) { 
@@ -33,17 +41,18 @@ template <class V> class HashMap {
      }
 
      bool try_lock(int key) {
-         if (lock.try_lock()) {
+         if (lock_list[key % lock_list.size()].try_lock()) {
              return true;
          }
          return false;
      }
 
-     void unlock(int key) {
-         lock.unlock();
-     }
+    void unlock(int key) {
+        lock_list[key % lock_list.size()].unlock(); 
+    }
 
     private:
     boost::unordered_map<int, V> map;
-    std::mutex lock;
+    boost::ptr_vector<std::mutex> lock_list;
+    // std::mutex lock;
 };

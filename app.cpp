@@ -22,7 +22,7 @@ using boost::asio::ip::tcp;
 // Parameters! :) 
 const int REPLICATION = 2;
 const int GET_PROBABILITY = 60;
-const int MULTIPUT_PROBABILITY = 50;
+const int MULTIPUT_PROBABILITY = 20;
 int NUM_OPERATIONS = 100; //per thread
 int NUM_THREADS = 8;
 int KEY_RANGE = 100;
@@ -161,7 +161,7 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, int n) {
         int key = std::rand() % KEY_RANGE;
         int value = std::rand() % VALUE_RANGE;
         for (int j = 0; j < key_values.size(); j++) {
-            if (key_values[i].first == key) continue;
+            if (key_values[j].first == key) continue;
         }
         key_values.push_back(std::make_pair(key, value));
     }
@@ -172,9 +172,12 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, int n) {
 
     //Build connection strings, lock both local and server
     std::vector<std::pair<connection_info*, std::string>> operations;
-    std::vector<std::pair<connection_info*, int>> node_locks; //For keeping track of server-side locks
+    // std::vector<std::pair<connection_info*, int>> node_locks; //For keeping track of server-side locks
+    std::vector<connection_info*> client_side_locks;
+    std::vector<std::pair<connection_info*, int>> server_side_locks;
     bool transaction_failed = false;
     static std::mutex m;
+    thread_print("Entering put lock guard");
     std::lock_guard<std::mutex> lock(m);
     // for (auto p = key_values.begin(); p != key_values.end(); p++) {
     std::for_each(key_values.begin(), key_values.end(), [&](std::pair<int, int> &p) {
@@ -190,12 +193,15 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, int n) {
                 std::string req_str = "P " + std::to_string(p.first) + " " + std::to_string(p.second);
                 connection_info* con = connect_to_node(io, p.first + i, nodes_info);
                 operations.push_back(std::pair<connection_info*, std::string>(con, req_str));
+                // thread_print("Locked " + std::to_string(cons[i]->node_id));
+                
                 thread_print("Locking " + std::to_string(con->node_id));
                 con->mutex->lock();
                 thread_print("Locked " + std::to_string(con->node_id));
-                // thread_print("Locked " + std::to_string(cons[i]->node_id));
-                if (std::find(node_locks.begin(), node_locks.end(), std::pair<connection_info*,int>(con, (p.first + i) % nodes_info.size())) == node_locks.end()) {
-                    node_locks.push_back(std::pair<connection_info*, int>(con, (p.first + i) % nodes_info.size()));
+                client_side_locks.push_back(con);
+
+                if (std::find(server_side_locks.begin(), server_side_locks.end(), std::pair<connection_info*,int>(con, p.first)) == server_side_locks.end()) {
+                    server_side_locks.push_back(std::pair<connection_info*, int>(con, p.first));
                     send_message(con, "L " + std::to_string(p.first));
                     std::string response = receive_message(con);
                     if (response.compare("0") == 0) {
@@ -203,7 +209,7 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, int n) {
                         parse_response(response, (n > 1) ? MULTIPUT : PUT);
                         thread_print("Unlocking " + std::to_string(con->node_id));
                         con->mutex->unlock();
-                        node_locks.erase(node_locks.end() - 1);
+                        server_side_locks.erase(server_side_locks.end() - 1);
                         break;
                     }
                 }
@@ -213,11 +219,14 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, int n) {
     //unlock all server-side locks, return and try again
     if (transaction_failed) {
         thread_print("Transaction failed");
-        for (auto p = node_locks.begin(); p < node_locks.end(); p++) {
+        for (auto p = server_side_locks.begin(); p < server_side_locks.end(); p++) {
             send_message(p->first, "U " + std::to_string(p->second));
-            thread_print("Unlocking " + std::to_string(p->first->node_id));
-            p->first->mutex->unlock();
         }
+        for (auto c = client_side_locks.begin(); c < client_side_locks.end(); c++) {
+            thread_print("Unlocking " + std::to_string((*c)->node_id));
+            (*c)->mutex->unlock();
+        }
+        
         return 0;
     }
     // m.unlock();
@@ -279,7 +288,7 @@ operation_type get_operation() {
         return operation_type::GET;
     }
     else {
-        if (std::rand() % 100 < MULTIPUT_PROBABILITY) {
+        if (std::rand() % (100 - GET_PROBABILITY) < MULTIPUT_PROBABILITY) {
             return operation_type::MULTIPUT;
         }
         else {

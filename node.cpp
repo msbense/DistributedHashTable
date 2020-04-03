@@ -26,12 +26,12 @@ template<class V> class Node {
     private:
     void start_accept() {
         std::vector<std::thread> threads;
-        thread_print("Listening...");
+        std::cerr << "Listening..." << std::endl;
         
         while (true) {
             tcp_connection::pointer connection = tcp_connection::create(acceptor.get_io_service());
             acceptor.accept(connection->socket());
-            print("Accepted connection");
+            std::cerr << "Accepted Connection" << std::endl;
             std::thread t(&Node::handle_accept, this, connection);
             threads.push_back(std::move(t));
         }
@@ -61,14 +61,15 @@ template<class V> class Node {
                 connection->start(response);
             connection->buffer.consume(len);
         }
-        print("Socket closed");
+        // print("Socket closed");
+        std::cerr << "Socket Closed" << std::endl;
         
     }
 
     //TODO Handle failed gets due to contention
     std::string get_response(std::string request_str) {
         
-        thread_print("requesting " + request_str);
+        // thread_print("requesting " + request_str);
         std::string ret = "";
 
         if (request_str.length() < 1)
@@ -109,7 +110,7 @@ template<class V> class Node {
             default:
                 break;
         }
-        thread_print("returning " + ret);
+        // thread_print("returning " + ret);
         return ret;
     }
 
