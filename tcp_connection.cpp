@@ -11,6 +11,7 @@ class tcp_connection
   : public boost::enable_shared_from_this<tcp_connection> {
         public:
         typedef boost::shared_ptr<tcp_connection> pointer;
+        boost::asio::streambuf buffer;
 
         static pointer create(boost::asio::io_service& io_service) {
             return pointer(new tcp_connection(io_service));

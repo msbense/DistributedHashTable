@@ -15,21 +15,21 @@ template <class V> class HashMap {
     }
 
     V get(int key) { 
-        if (lock.try_lock()) {
-            V val = map[key];
-            lock.unlock();
-            return val;
-        }
-        return NULL;
+        // if (lock.try_lock()) {
+        V val = map[key];
+            // lock.unlock();
+        return val;
+        // }
+        // return NULL;
     }
     
-    bool put(int key, V value) {
-        if (lock.try_lock()) {
-            map[key] = value;
-            lock.unlock();
-            return true;
-        }
-        return false;
+    void put(int key, V value) {
+        // if (lock.try_lock()) {
+        map[key] = value;
+        // lock.unlock();
+        // return true;
+        // }
+        // return false;
      }
 
      bool try_lock(int key) {
