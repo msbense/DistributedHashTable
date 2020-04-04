@@ -54,6 +54,7 @@ struct connection_info_t {
     }
 };
 typedef struct connection_info_t connection_info;
+boost::ptr_vector<connection_info> open_connections;
 
 void print_results(long);
 connection_info *connect_to_node(boost::asio::io_service& io, int key, std::vector<node_info> nodes, boost::ptr_vector<connection_info> &open_connections);
@@ -102,21 +103,23 @@ int main(int argc, char *argv[]) {
     catch (std::exception& e) {
         std::cerr << e.what() << std::endl;
     }
+    open_connections.clear();
     
 }
 
 void make_transactions(boost::asio::io_service &io, std::vector<node_info> nodes_info, int n_ops) {
-    boost::ptr_vector<connection_info> open_connections;
+    // boost::ptr_vector<connection_info> open_connections;
     for (int i = 0; i < n_ops; i++) {
         int result = 0;
         while (result == 0) {
+            // result = transaction(io, nodes_info, open_connections);
             result = transaction(io, nodes_info, open_connections);
         }
         if (result < 0) {
             return;
         }
     }
-    open_connections.clear();
+    // open_connections.clear();
 }
 
 int transaction(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::ptr_vector<connection_info> &open_connections) {
@@ -144,10 +147,10 @@ int get(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::p
         std::string request_str = "G " + std::to_string(key);
         int node_id = node_for_key(key, nodes_info);
         connection_info* con = connect_to_node(io, key, nodes_info, open_connections);
-        // con->mutex->lock();
+        con->mutex->lock();
         send_message(con, request_str);
         std::string response = receive_message(con);
-        // con->mutex->unlock();
+        con->mutex->unlock();
         result = parse_response(response, GET);
     }
     return result;
@@ -174,7 +177,10 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::p
     while (result == 0) {
         std::vector<std::pair<connection_info*, std::string>> operations;
         std::vector<std::pair<connection_info*, int>> server_side_locks;
+        std::vector<connection_info*> client_side_locks;
         bool transaction_failed = false;
+        static std::mutex m;
+        std::lock_guard<std::mutex> lock(m);
         std::for_each(key_values.begin(), key_values.end(), [&](std::pair<int, int> &p) {
             thread_print("Setting up set: " + std::to_string(p.first) + " " + std::to_string(p.second));
         });
@@ -191,9 +197,9 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::p
                     // thread_print("Locked " + std::to_string(cons[i]->node_id));
                     
                     // thread_print("Locking " + std::to_string(con->node_id));
-                    // con->mutex->lock();
+                    con->mutex->lock();
                     // thread_print("Locked " + std::to_string(con->node_id));
-                    // client_side_locks.push_back(con);
+                    client_side_locks.push_back(con);
 
                     if (std::find(server_side_locks.begin(), server_side_locks.end(), std::pair<connection_info*,int>(con, p.first)) == server_side_locks.end()) {
                         server_side_locks.push_back(std::pair<connection_info*, int>(con, p.first));
@@ -203,7 +209,7 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::p
                             transaction_failed = true;
                             parse_response(response, (n > 1) ? MULTIPUT : PUT);
                             thread_print("Unlocking " + std::to_string(con->node_id));
-                            // con->mutex->unlock();
+                            con->mutex->unlock();
                             server_side_locks.erase(server_side_locks.end() - 1);
                             break;
                         }
@@ -217,10 +223,10 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::p
             for (auto p = server_side_locks.begin(); p < server_side_locks.end(); p++) {
                 send_message(p->first, "U " + std::to_string(p->second));
             }
-            // for (auto c = client_side_locks.begin(); c < client_side_locks.end(); c++) {
-            //     thread_print("Unlocking " + std::to_string((*c)->node_id));
-            //     (*c)->mutex->unlock();
-            // }
+            for (auto c = client_side_locks.begin(); c < client_side_locks.end(); c++) {
+                thread_print("Unlocking " + std::to_string((*c)->node_id));
+                (*c)->mutex->unlock();
+            }
             
             result = 0;
             continue;
@@ -235,15 +241,15 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::p
             });
         parse_response("1", (n == 1) ? PUT : MULTIPUT);
         result = 1;
+        // Unlock connections (server-side locks are unlocked upon finish)
+        std::for_each(operations.begin(), operations.end(), 
+            [&](std::pair<connection_info*, std::string> &p) {
+                // int key = std::stoi(p.second.substr(2));
+                // send_message(p.first, "U " + std::to_string(key));
+                // thread_print("Unlocking " + std::to_string(p.first->node_id));
+                p.first->mutex->unlock();
+            });
     }
-    //Unlock connections (server-side locks are unlocked upon finish)
-    // std::for_each(operations.begin(), operations.end(), 
-    //     [&](std::pair<connection_info*, std::string> &p) {
-    //         int key = std::stoi(p.second.substr(2));
-    //         // send_message(p.first, "U " + std::to_string(key));
-    //         // thread_print("Unlocking " + std::to_string(p.first->node_id));
-    //         // p.first->mutex->unlock();
-    //     });
     
     return result;
 }
@@ -335,8 +341,8 @@ void print_results(long duration) {
 
 //returns a socket to the node responsible for that key
 connection_info *connect_to_node(boost::asio::io_service& io, int key, std::vector<node_info> nodes, boost::ptr_vector<connection_info> &open_connections) {
-    // static std::mutex mtx;
-    // const std::lock_guard<std::mutex> lock(mtx);
+    static std::mutex mtx;
+    const std::lock_guard<std::mutex> lock(mtx);
     
     tcp::resolver resolver(io);
     int node_id = (key % nodes.size());
