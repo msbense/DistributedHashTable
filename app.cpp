@@ -54,17 +54,16 @@ struct connection_info_t {
     }
 };
 typedef struct connection_info_t connection_info;
-boost::ptr_vector<connection_info> open_connections;
 
 void print_results(long);
-connection_info *connect_to_node(boost::asio::io_service& io, int key, std::vector<node_info> nodes);
+connection_info *connect_to_node(boost::asio::io_service& io, int key, std::vector<node_info> nodes, boost::ptr_vector<connection_info> &open_connections);
 bool parse_response(std::string s, operation_type optype);
 std::vector<node_info> load_node_info(void);
 void print_nodes_info(std::vector<node_info> nodes);
 void make_transactions(boost::asio::io_service &io, std::vector<node_info> nodes_info, int n_ops);
-int transaction(boost::asio::io_service &io, std::vector<node_info> nodes_info);
-int get(boost::asio::io_service &io, std::vector<node_info> nodes_info);
-int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, int n);
+int transaction(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::ptr_vector<connection_info> &open_connections);
+int get(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::ptr_vector<connection_info> &open_connections);
+int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::ptr_vector<connection_info> &open_connections, int n);
 void send_message(connection_info* c, std::string m);
 std::string receive_message(connection_info* c);
 int node_for_key(int key, std::vector<node_info> nodes_info);
@@ -103,57 +102,57 @@ int main(int argc, char *argv[]) {
     catch (std::exception& e) {
         std::cerr << e.what() << std::endl;
     }
-    open_connections.clear();
+    
 }
 
 void make_transactions(boost::asio::io_service &io, std::vector<node_info> nodes_info, int n_ops) {
+    boost::ptr_vector<connection_info> open_connections;
     for (int i = 0; i < n_ops; i++) {
         int result = 0;
         while (result == 0) {
-            result = transaction(io, nodes_info);
+            result = transaction(io, nodes_info, open_connections);
         }
         if (result < 0) {
             return;
         }
     }
+    open_connections.clear();
 }
 
-//TODO two phase commit client side
-//TODO parallelize
-int transaction(boost::asio::io_service &io, std::vector<node_info> nodes_info) {
+int transaction(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::ptr_vector<connection_info> &open_connections) {
     operation_type optype = get_operation();
     int result = 0;
     switch(optype) {
         case GET:
-            result = get(io, nodes_info);
+            result = get(io, nodes_info, open_connections);
             break;
         case PUT:
-            result = put(io, nodes_info, 1);
+            result = put(io, nodes_info, open_connections, 1);
             break;
         case MULTIPUT:
-            result = put(io, nodes_info, 3);
+            result = put(io, nodes_info, open_connections, 3);
             break;
     }
     return result;
 }
 
-int get(boost::asio::io_service &io, std::vector<node_info> nodes_info) {
+int get(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::ptr_vector<connection_info> &open_connections) {
     int result = 0;
 
     int key = std::rand() % KEY_RANGE;
     std::string request_str = "G " + std::to_string(key);
     int node_id = node_for_key(key, nodes_info);
-    connection_info* con = connect_to_node(io, key, nodes_info);
-    con->mutex->lock();
+    connection_info* con = connect_to_node(io, key, nodes_info, open_connections);
+    // con->mutex->lock();
     send_message(con, request_str);
     std::string response = receive_message(con);
-    con->mutex->unlock();
+    // con->mutex->unlock();
     result = parse_response(response, GET);
 
     return result;
 }
 
-int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, int n) {
+int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::ptr_vector<connection_info> &open_connections, int n) {
     //Decide on an operation
     operation_type optype = get_operation();
     std::vector<std::pair<int, int>> key_values;
@@ -166,20 +165,13 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, int n) {
         key_values.push_back(std::make_pair(key, value));
     }
     std::sort(key_values.begin(), key_values.end(), 
-        [](std::pair<int, int> &p1, std::pair<int, int> &p2){
+        [](std::pair<int, int> &p1, std::pair<int, int> &p2) {
             return p1.first > p2.first;
         });
 
-    //Build connection strings, lock both local and server
     std::vector<std::pair<connection_info*, std::string>> operations;
-    // std::vector<std::pair<connection_info*, int>> node_locks; //For keeping track of server-side locks
-    std::vector<connection_info*> client_side_locks;
     std::vector<std::pair<connection_info*, int>> server_side_locks;
     bool transaction_failed = false;
-    static std::mutex m;
-    thread_print("Entering put lock guard");
-    std::lock_guard<std::mutex> lock(m);
-    // for (auto p = key_values.begin(); p != key_values.end(); p++) {
     std::for_each(key_values.begin(), key_values.end(), [&](std::pair<int, int> &p) {
         thread_print("Setting up set: " + std::to_string(p.first) + " " + std::to_string(p.second));
     });
@@ -191,14 +183,14 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, int n) {
             
             for (int i = 0; i < REPLICATION; i++) {
                 std::string req_str = "P " + std::to_string(p.first) + " " + std::to_string(p.second);
-                connection_info* con = connect_to_node(io, p.first + i, nodes_info);
+                connection_info* con = connect_to_node(io, p.first + i, nodes_info, open_connections);
                 operations.push_back(std::pair<connection_info*, std::string>(con, req_str));
                 // thread_print("Locked " + std::to_string(cons[i]->node_id));
                 
-                thread_print("Locking " + std::to_string(con->node_id));
-                con->mutex->lock();
-                thread_print("Locked " + std::to_string(con->node_id));
-                client_side_locks.push_back(con);
+                // thread_print("Locking " + std::to_string(con->node_id));
+                // con->mutex->lock();
+                // thread_print("Locked " + std::to_string(con->node_id));
+                // client_side_locks.push_back(con);
 
                 if (std::find(server_side_locks.begin(), server_side_locks.end(), std::pair<connection_info*,int>(con, p.first)) == server_side_locks.end()) {
                     server_side_locks.push_back(std::pair<connection_info*, int>(con, p.first));
@@ -208,7 +200,7 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, int n) {
                         transaction_failed = true;
                         parse_response(response, (n > 1) ? MULTIPUT : PUT);
                         thread_print("Unlocking " + std::to_string(con->node_id));
-                        con->mutex->unlock();
+                        // con->mutex->unlock();
                         server_side_locks.erase(server_side_locks.end() - 1);
                         break;
                     }
@@ -222,10 +214,10 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, int n) {
         for (auto p = server_side_locks.begin(); p < server_side_locks.end(); p++) {
             send_message(p->first, "U " + std::to_string(p->second));
         }
-        for (auto c = client_side_locks.begin(); c < client_side_locks.end(); c++) {
-            thread_print("Unlocking " + std::to_string((*c)->node_id));
-            (*c)->mutex->unlock();
-        }
+        // for (auto c = client_side_locks.begin(); c < client_side_locks.end(); c++) {
+        //     thread_print("Unlocking " + std::to_string((*c)->node_id));
+        //     (*c)->mutex->unlock();
+        // }
         
         return 0;
     }
@@ -246,7 +238,7 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, int n) {
             int key = std::stoi(p.second.substr(2));
             // send_message(p.first, "U " + std::to_string(key));
             thread_print("Unlocking " + std::to_string(p.first->node_id));
-            p.first->mutex->unlock();
+            // p.first->mutex->unlock();
         });
     
     return 1;
@@ -260,6 +252,7 @@ void send_message(connection_info *connection, std::string message) {
     thread_print("To " + std::to_string(connection->node_id) + " " + message);
     message.append("\n");
     connection->socket->write_some(boost::asio::buffer(message));
+    thread_print("done");
 }
 
 std::string receive_message(connection_info* connection) {
@@ -338,9 +331,9 @@ void print_results(long duration) {
 }
 
 //returns a socket to the node responsible for that key
-connection_info *connect_to_node(boost::asio::io_service& io, int key, std::vector<node_info> nodes) {
-    static std::mutex mtx;
-    const std::lock_guard<std::mutex> lock(mtx);
+connection_info *connect_to_node(boost::asio::io_service& io, int key, std::vector<node_info> nodes, boost::ptr_vector<connection_info> &open_connections) {
+    // static std::mutex mtx;
+    // const std::lock_guard<std::mutex> lock(mtx);
     
     tcp::resolver resolver(io);
     int node_id = (key % nodes.size());
@@ -348,6 +341,7 @@ connection_info *connect_to_node(boost::asio::io_service& io, int key, std::vect
     tcp::resolver::query query(node.host, node.port);
     tcp::resolver::iterator endpoint_iterator = resolver.resolve(query);
     
+    thread_print("Creating connection");
     for (int i = 0; i < open_connections.size(); i++) {
         if (endpoint_iterator->endpoint() == open_connections[i].socket->remote_endpoint()) {
             return &open_connections[i];
@@ -360,9 +354,10 @@ connection_info *connect_to_node(boost::asio::io_service& io, int key, std::vect
     connection->mutex = new std::recursive_mutex();
     connection->node_id = node_id;
     boost::asio::connect(*(connection->socket), endpoint_iterator);
-    boost::asio::ip::tcp::no_delay option(true);
-    connection->socket->set_option(option);
+    // boost::asio::ip::tcp::no_delay option(true);
+    // connection->socket->set_option(option);
     open_connections.push_back(connection);
+    thread_print("Connection created");
     return connection;
 }
 

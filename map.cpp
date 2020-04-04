@@ -10,7 +10,7 @@
 //TODO change to hash on something other than direct key value, to avoid skew
 template <class V> class HashMap {
 
-    const int NUM_LOCKS = 10;
+    const int NUM_LOCKS = 200;
     public:
     HashMap() {
         for (int i = 0; i < NUM_LOCKS; i++) {
