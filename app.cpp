@@ -20,7 +20,7 @@ namespace fs = boost::filesystem;
 using boost::asio::ip::tcp;
 
 // Parameters! :) 
-const int REPLICATION = 1;
+const int REPLICATION = 2;
 const int GET_PROBABILITY = 60;
 const int MULTIPUT_PROBABILITY = 20;
 int NUM_OPERATIONS = 100; //per thread
