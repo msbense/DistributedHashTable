@@ -181,19 +181,11 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::p
         std::for_each(key_values.begin(), key_values.end(), [&](std::pair<int, int> &p) {
             if (!transaction_failed) {
                 thread_print("Setting up " + std::to_string(p.first) + " " + std::to_string(p.second));
-                //lock client side connections
-                //lock guard around locks to avoid deadlock
                 
                 for (int i = 0; i < REPLICATION; i++) {
                     std::string req_str = "P " + std::to_string(p.first) + " " + std::to_string(p.second);
                     connection_info* con = connect_to_node(io, p.first + i, nodes_info, open_connections);
                     operations.push_back(std::pair<connection_info*, std::string>(con, req_str));
-                    // thread_print("Locked " + std::to_string(cons[i]->node_id));
-                    
-                    // thread_print("Locking " + std::to_string(con->node_id));
-                    // con->mutex->lock();
-                    // thread_print("Locked " + std::to_string(con->node_id));
-                    // client_side_locks.push_back(con);
 
                     if (std::find(server_side_locks.begin(), server_side_locks.end(), std::pair<connection_info*,int>(con, p.first)) == server_side_locks.end()) {
                         server_side_locks.push_back(std::pair<connection_info*, int>(con, p.first));
@@ -233,17 +225,9 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::p
                 send_message(p.first, p.second);
                 // std::string response = receive_message(p.first);
             });
-        parse_response("1", (n == 1) ? PUT : MULTIPUT);
         result = 1;
     }
-    //Unlock connections (server-side locks are unlocked upon finish)
-    // std::for_each(operations.begin(), operations.end(), 
-    //     [&](std::pair<connection_info*, std::string> &p) {
-    //         int key = std::stoi(p.second.substr(2));
-    //         // send_message(p.first, "U " + std::to_string(key));
-    //         // thread_print("Unlocking " + std::to_string(p.first->node_id));
-    //         // p.first->mutex->unlock();
-    //     });
+    parse_response("1", (n == 1) ? PUT : MULTIPUT);
     
     return result;
 }
@@ -280,16 +264,15 @@ std::string receive_message(connection_info* connection) {
 }
 
 operation_type get_operation() {
-    if (std::rand() % 100 < GET_PROBABILITY) {
+    int rnd = std::rand() % 100;
+    if (rnd < GET_PROBABILITY) {
         return operation_type::GET;
     }
+    else if (rnd < (MULTIPUT_PROBABILITY + GET_PROBABILITY)) {
+        return operation_type::MULTIPUT;
+    }
     else {
-        if (std::rand() % (100 - GET_PROBABILITY) < MULTIPUT_PROBABILITY) {
-            return operation_type::MULTIPUT;
-        }
-        else {
-            return operation_type::PUT;
-        }
+        return operation_type::PUT;
     }
 }
 
