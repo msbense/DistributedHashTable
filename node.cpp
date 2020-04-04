@@ -69,7 +69,7 @@ template<class V> class Node {
     //TODO Handle failed gets due to contention
     std::string get_response(std::string request_str) {
         
-        // thread_print("requesting " + request_str);
+        thread_print("requesting " + request_str);
         std::string ret = "";
 
         if (request_str.length() < 1)
@@ -91,7 +91,7 @@ template<class V> class Node {
                     V value = std::stoi(request_str.substr(v_idx));
                     map.put(key, value);
                     map.unlock(key);
-                    ret = "1";
+                    // ret = "1";
                 }   
                 break;
             case 'L':
@@ -110,7 +110,7 @@ template<class V> class Node {
             default:
                 break;
         }
-        // thread_print("returning " + ret);
+        thread_print("returning " + ret);
         return ret;
     }
 

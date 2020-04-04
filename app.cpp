@@ -227,9 +227,9 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::p
     std::for_each(operations.begin(), operations.end(), 
         [&](std::pair<connection_info*, std::string> &p) {
             send_message(p.first, p.second);
-            std::string response = receive_message(p.first);
-            parse_response(response, (n == 1) ? PUT : MULTIPUT);
+            // std::string response = receive_message(p.first);
         });
+    parse_response("1", (n == 1) ? PUT : MULTIPUT);
     
     
     //Unlock connections (server-side locks are unlocked upon finish)
@@ -237,7 +237,7 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::p
         [&](std::pair<connection_info*, std::string> &p) {
             int key = std::stoi(p.second.substr(2));
             // send_message(p.first, "U " + std::to_string(key));
-            thread_print("Unlocking " + std::to_string(p.first->node_id));
+            // thread_print("Unlocking " + std::to_string(p.first->node_id));
             // p.first->mutex->unlock();
         });
     
