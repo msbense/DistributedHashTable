@@ -24,7 +24,7 @@ const int REPLICATION = 2;
 const int GET_PROBABILITY = 60;
 const int MULTIPUT_PROBABILITY = 20;
 int NUM_OPERATIONS = 100; //per thread
-int NUM_THREADS = 1;
+int NUM_THREADS = 16;
 int KEY_RANGE = 100;
 int VALUE_RANGE = 1000;
 
