@@ -259,7 +259,7 @@ std::string receive_message(connection_info* connection) {
     // boost::array<char, 128> buf;
     boost::system::error_code error;
     // size_t len = connection->socket->read_some(boost::asio::buffer(buf), error);
-    size_t len = boost::asio::read_until(*(connection->socket), connection->buffer, '\n');
+    size_t len = boost::asio::read_until(*(connection->socket), connection->buffer, '\n', error);
     if (error == boost::asio::error::eof) {
         std::stringstream sstr;
         sstr << "EOF when reading from node " << connection->node_id << std::endl;
