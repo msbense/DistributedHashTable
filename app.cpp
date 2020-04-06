@@ -24,7 +24,7 @@ const int REPLICATION = 2;
 const int GET_PROBABILITY = 60;
 const int MULTIPUT_PROBABILITY = 20;
 int NUM_OPERATIONS = 100; //per thread
-int NUM_THREADS = 16;
+int NUM_THREADS = 8;
 int KEY_RANGE = 100;
 int VALUE_RANGE = 1000;
 
@@ -48,6 +48,8 @@ struct connection_info_t {
     tcp::socket *socket;
     std::recursive_mutex *mutex;
     int node_id; 
+    boost::asio::streambuf buffer;
+
     ~connection_info_t() {
         delete socket;
         delete mutex;
@@ -160,14 +162,19 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::p
     for (int i = 0; i < n; i++) {
         int key = std::rand() % KEY_RANGE;
         int value = std::rand() % VALUE_RANGE;
+        bool contains = false;
         for (int j = 0; j < key_values.size(); j++) {
-            if (key_values[j].first == key) continue;
+            if (key_values[j].first == key) {
+                i--;
+                contains = true;
+            }
         }
-        key_values.push_back(std::make_pair(key, value));
+        if (!contains)
+            key_values.push_back(std::make_pair(key, value));
     }
     std::sort(key_values.begin(), key_values.end(), 
-        [](std::pair<int, int> &p1, std::pair<int, int> &p2) {
-            return p1.first > p2.first;
+        [&](std::pair<int, int> &p1, std::pair<int, int> &p2) {
+            return (p1.first % nodes_info.size()) > (p2.first % nodes_info.size());
         });
 
     int result = 0;
@@ -187,22 +194,27 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::p
                     connection_info* con = connect_to_node(io, p.first + i, nodes_info, open_connections);
                     operations.push_back(std::pair<connection_info*, std::string>(con, req_str));
 
-                    if (std::find(server_side_locks.begin(), server_side_locks.end(), std::pair<connection_info*,int>(con, p.first)) == server_side_locks.end()) {
+                    if (std::find(server_side_locks.begin(), server_side_locks.end(), 
+                                    std::pair<connection_info*,int>(con, p.first)) == server_side_locks.end()) {
                         server_side_locks.push_back(std::pair<connection_info*, int>(con, p.first));
                         send_message(con, "L " + std::to_string(p.first));
-                        std::string response = receive_message(con);
-                        if (response.compare("0") == 0) {
-                            transaction_failed = true;
-                            parse_response(response, (n > 1) ? MULTIPUT : PUT);
-                            thread_print("Unlocking " + std::to_string(con->node_id));
-                            // con->mutex->unlock();
-                            server_side_locks.erase(server_side_locks.end() - 1);
-                            break;
-                        }
                     }
                 }
             }
         });
+        thread_print("Checking responses...");
+
+        for (auto p = server_side_locks.begin(); p < server_side_locks.end(); p++) { 
+            auto con = p->first;
+            std::string response = receive_message(con);
+            if (response.compare("0\n") == 0) {
+                transaction_failed = true;
+                parse_response(response, (n > 1) ? MULTIPUT : PUT);
+                server_side_locks.erase(p);
+            }
+        }
+        
+        
         //unlock all server-side locks, return and try again
         if (transaction_failed) {
             thread_print("Transaction failed");
@@ -215,17 +227,18 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::p
             // }
             
             result = 0;
-            continue;
         }
-        // m.unlock();
+        else {
+            // m.unlock();
 
-        //Perform operations
-        std::for_each(operations.begin(), operations.end(), 
-            [&](std::pair<connection_info*, std::string> &p) {
-                send_message(p.first, p.second);
-                // std::string response = receive_message(p.first);
-            });
-        result = 1;
+            //Perform operations
+            std::for_each(operations.begin(), operations.end(), 
+                [&](std::pair<connection_info*, std::string> &p) {
+                    send_message(p.first, p.second);
+                    // std::string response = receive_message(p.first);
+                });
+            result = 1;
+        }
     }
     parse_response("1", (n == 1) ? PUT : MULTIPUT);
     
@@ -243,10 +256,10 @@ void send_message(connection_info *connection, std::string message) {
 }
 
 std::string receive_message(connection_info* connection) {
-    boost::array<char, 128> buf;
+    // boost::array<char, 128> buf;
     boost::system::error_code error;
-    size_t len = connection->socket->read_some(boost::asio::buffer(buf), error);
-
+    // size_t len = connection->socket->read_some(boost::asio::buffer(buf), error);
+    size_t len = boost::asio::read_until(*(connection->socket), connection->buffer, '\n');
     if (error == boost::asio::error::eof) {
         std::stringstream sstr;
         sstr << "EOF when reading from node " << connection->node_id << std::endl;
@@ -258,7 +271,8 @@ std::string receive_message(connection_info* connection) {
             connection->node_id << std::endl;
         std::cerr << sstr.str();
     }
-    std::string res(buf.data(), len); 
+    std::string res(boost::asio::buffer_cast<const char*>(connection->buffer.data()), len); 
+    connection->buffer.consume(len);
     thread_print("From " + std::to_string(connection->node_id) + " " + res);
     return res;
 }

@@ -58,7 +58,7 @@ template<class V> class Node {
             std::string request(boost::asio::buffer_cast<const char*>(connection->buffer.data()), len);
             std::string response(get_response(request));
             if (response.compare("") != 0)
-                connection->start(response);
+                connection->start(response + "\n");
             connection->buffer.consume(len);
         }
         // print("Socket closed");
@@ -69,7 +69,7 @@ template<class V> class Node {
     //TODO Handle failed gets due to contention
     std::string get_response(std::string request_str) {
         
-        thread_print("requesting " + request_str);
+        // thread_print("requesting " + request_str);
         std::string ret = "";
 
         if (request_str.length() < 1)
@@ -99,6 +99,8 @@ template<class V> class Node {
                     int key = std::stoi(request_str.substr(2));
                     bool res = map.try_lock(key);
                     ret = (res) ? "1" : "0";
+                    if (!res)
+                        thread_print("Failed");
                 }
                 break;
             case 'U':
@@ -110,7 +112,7 @@ template<class V> class Node {
             default:
                 break;
         }
-        thread_print("returning " + ret);
+        // thread_print("returning " + ret);
         return ret;
     }
 
