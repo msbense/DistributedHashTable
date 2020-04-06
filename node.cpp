@@ -56,8 +56,8 @@ template<class V> class Node {
                         break;
                 }
                 else {
-                    std::cerr << "Error thrown in node.cpp when reading socket: " << error.message() << std::endl;
-                    std::cerr << "Closing connection..";
+                    // std::cerr << "Error thrown in node.cpp when reading socket: " << error.message() << std::endl;
+                    // std::cerr << "Closing connection..";
                     return;
                 }
             }
