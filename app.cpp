@@ -253,7 +253,12 @@ void send_message(connection_info *connection, std::string message) {
     thread_print("To " + std::to_string(connection->node_id) + " " + message);
     message.append("\n");
     boost::system::error_code error;
-    connection->socket->write_some(boost::asio::buffer(message), error);
+    try {
+        connection->socket->write_some(boost::asio::buffer(message), error);
+    }
+    catch (std::exception e) {
+        std::cerr << e.what();
+    }
 }
 
 std::string receive_message(connection_info* connection) {
