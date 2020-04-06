@@ -57,6 +57,7 @@ struct connection_info_t {
 };
 typedef struct connection_info_t connection_info;
 
+
 void print_results(long);
 connection_info *connect_to_node(boost::asio::io_service& io, int key, std::vector<node_info> nodes, boost::ptr_vector<connection_info> &open_connections);
 bool parse_response(std::string s, operation_type optype);
@@ -85,7 +86,7 @@ int main(int argc, char *argv[]) {
         print_nodes_info(nodes_info);
 
         auto t1 = std::chrono::high_resolution_clock::now();
-    
+
         std::vector<std::thread> threads;
         for (int i = 0; i < NUM_THREADS; i++) {
             std::thread t([&]{ make_transactions(io, nodes_info, NUM_OPERATIONS); });
@@ -118,6 +119,11 @@ void make_transactions(boost::asio::io_service &io, std::vector<node_info> nodes
             return;
         }
     }
+    thread_print("Operations done, closing connections....");
+    std::for_each(open_connections.begin(), open_connections.end(), 
+        [&](connection_info &c){
+            c.socket->close();
+        });
     open_connections.clear();
 }
 
