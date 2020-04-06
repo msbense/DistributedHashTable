@@ -252,7 +252,8 @@ int node_for_key(int key, std::vector<node_info> nodes_info) {
 void send_message(connection_info *connection, std::string message) {
     thread_print("To " + std::to_string(connection->node_id) + " " + message);
     message.append("\n");
-    connection->socket->write_some(boost::asio::buffer(message));
+    boost::system::error_code error;
+    connection->socket->write_some(boost::asio::buffer(message), error);
 }
 
 std::string receive_message(connection_info* connection) {
