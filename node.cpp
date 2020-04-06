@@ -45,14 +45,20 @@ template<class V> class Node {
         while (socket.is_open()) {
             boost::system::error_code error;
             size_t len = 0;
-            len = boost::asio::read_until(socket, connection->buffer, '\n', error);
+            try {
+                len = boost::asio::read_until(socket, connection->buffer, '\n', error);
+            }
+            catch (std::exception e) {
+                thread_print(e.what());
+            }
             if (error) {  
                 if (error == boost::asio::error::eof) { 
                         break;
                 }
                 else {
                     std::cerr << "Error thrown in node.cpp when reading socket: " << error.message() << std::endl;
-                    throw error; 
+                    std::cerr << "Closing connection..";
+                    return;
                 }
             }
             std::string request(boost::asio::buffer_cast<const char*>(connection->buffer.data()), len);
