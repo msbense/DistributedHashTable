@@ -70,6 +70,7 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::p
 void send_message(connection_info* c, std::string m);
 std::string receive_message(connection_info* c);
 int node_for_key(int key, std::vector<node_info> nodes_info);
+void exp_backoff(int wait_time_exp);
 
 operation_type get_operation();
 std::vector<std::pair<int,int>> generate_keys_val_pairs(operation_type optype);
@@ -127,6 +128,7 @@ void make_transactions(boost::asio::io_service &io, std::vector<node_info> nodes
     open_connections.clear();
 }
 
+//TODO Exponential backoff
 int transaction(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::ptr_vector<connection_info> &open_connections) {
     operation_type optype = get_operation();
     int result = 0;
@@ -144,23 +146,37 @@ int transaction(boost::asio::io_service &io, std::vector<node_info> nodes_info, 
     return result;
 }
 
+void exp_backoff(int wait_time_exp) {
+    int i;
+    for (i = 0; i < wait_time_exp; i++) {
+        if (std::rand() % 2 == 0) {
+            std::this_thread::sleep_for(std::chrono::seconds((int)std::pow(2, i)));
+            break;
+        }
+    }
+    if (i == wait_time_exp)
+        std::this_thread::sleep_for(std::chrono::seconds((int)std::pow(2, i)));
+}
+
 int get(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::ptr_vector<connection_info> &open_connections) {
     int result = 0;
 
     int key = std::rand() % KEY_RANGE;
+    auto wait_time_exp = 0; 
     while (result == 0) {
+        exp_backoff(wait_time_exp++);
         std::string request_str = "G " + std::to_string(key);
         int node_id = node_for_key(key, nodes_info);
         connection_info* con = connect_to_node(io, key, nodes_info, open_connections);
-        // con->mutex->lock();
         send_message(con, request_str);
         std::string response = receive_message(con);
-        // con->mutex->unlock();
         result = parse_response(response, GET);
     }
     return result;
 }
 
+
+//TODO send multiple lock requests to same node on the same message
 int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::ptr_vector<connection_info> &open_connections, int n) {
     //Decide on an operation
     operation_type optype = get_operation();
@@ -184,7 +200,9 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::p
         });
 
     int result = 0;
+    int wait_time_exp = 0;
     while (result == 0) {
+        exp_backoff(wait_time_exp++);
         std::vector<std::pair<connection_info*, std::string>> operations;
         std::vector<std::pair<connection_info*, int>> server_side_locks;
         bool transaction_failed = false;
