@@ -128,7 +128,6 @@ void make_transactions(boost::asio::io_service &io, std::vector<node_info> nodes
     open_connections.clear();
 }
 
-//TODO Exponential backoff
 int transaction(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::ptr_vector<connection_info> &open_connections) {
     operation_type optype = get_operation();
     int result = 0;
@@ -147,20 +146,22 @@ int transaction(boost::asio::io_service &io, std::vector<node_info> nodes_info, 
 }
 
 void exp_backoff(int wait_time_exp) {
-    int i;
-    for (i = 0; i < wait_time_exp; i++) {
-        if (std::rand() % 2 == 0) {
-            std::this_thread::sleep_for(std::chrono::seconds((int)std::pow(2, i)));
-            break;
+    // return;
+    if (wait_time_exp > 0) {
+        int i;
+        for (i = 0; i < wait_time_exp; i++) {
+            if (std::rand() % 2 == 0) {
+                std::this_thread::sleep_for(std::chrono::microseconds((int)std::pow(2, i)));
+                return;
+            }
         }
+        if (i == wait_time_exp)
+            std::this_thread::sleep_for(std::chrono::microseconds((int)std::pow(2, i)));
     }
-    if (i == wait_time_exp)
-        std::this_thread::sleep_for(std::chrono::seconds((int)std::pow(2, i)));
 }
 
 int get(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::ptr_vector<connection_info> &open_connections) {
     int result = 0;
-
     int key = std::rand() % KEY_RANGE;
     auto wait_time_exp = 0; 
     while (result == 0) {
@@ -176,7 +177,6 @@ int get(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::p
 }
 
 
-//TODO send multiple lock requests to same node on the same message
 int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::ptr_vector<connection_info> &open_connections, int n) {
     //Decide on an operation
     operation_type optype = get_operation();
@@ -204,7 +204,7 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::p
     while (result == 0) {
         exp_backoff(wait_time_exp++);
         std::vector<std::pair<connection_info*, std::string>> operations;
-        std::vector<std::pair<connection_info*, int>> server_side_locks;
+        std::vector<std::pair<connection_info*, std::vector<int>>> server_side_locks;
         bool transaction_failed = false;
         std::for_each(key_values.begin(), key_values.end(), [&](std::pair<int, int> &p) {
             thread_print("Setting up set: " + std::to_string(p.first) + " " + std::to_string(p.second));
@@ -212,20 +212,45 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::p
         std::for_each(key_values.begin(), key_values.end(), [&](std::pair<int, int> &p) {
             if (!transaction_failed) {
                 thread_print("Setting up " + std::to_string(p.first) + " " + std::to_string(p.second));
-                
                 for (int i = 0; i < REPLICATION; i++) {
                     std::string req_str = "P " + std::to_string(p.first) + " " + std::to_string(p.second);
                     connection_info* con = connect_to_node(io, p.first + i, nodes_info, open_connections);
                     operations.push_back(std::pair<connection_info*, std::string>(con, req_str));
 
-                    if (std::find(server_side_locks.begin(), server_side_locks.end(), 
-                                    std::pair<connection_info*,int>(con, p.first)) == server_side_locks.end()) {
-                        server_side_locks.push_back(std::pair<connection_info*, int>(con, p.first));
-                        send_message(con, "L " + std::to_string(p.first));
+                    bool contains_lock = false;
+                    for (int i = 0; i < server_side_locks.size() && !contains_lock; i++) {
+                        auto lock = server_side_locks[i];
+                        if (lock.first == con) {
+                            contains_lock = true;
+                            if (std::find(lock.second.begin(), lock.second.end(), p.first) == lock.second.end())
+                                lock.second.push_back(p.first);
+                            break;
+                        }
                     }
+                    if (!contains_lock) {
+                        std::vector<int> keys;
+                        keys.push_back(p.first);
+                        server_side_locks.push_back(std::make_pair(con, keys));
+                    }
+                    // if (std::find(server_side_locks.begin(), server_side_locks.end(), 
+                                    // std::pair<connection_info*,int>(con, p.first)) == server_side_locks.end()) {
+                        // server_side_locks.push_back(std::pair<connection_info*, int>(con, p.first));
+                        // send_message(con, "L " + std::to_string(p.first));
+                    // }
                 }
             }
         });
+        for (auto p = server_side_locks.begin(); p < server_side_locks.end(); p++) { 
+            auto con = p->first;
+            std::stringstream lock_sstr;
+            lock_sstr << "L ";
+            for (int i = 0; i < p->second.size(); i++) {
+                lock_sstr << std::to_string(p->second[i]);
+            } 
+            send_message(con, lock_sstr.str());
+        }
+
+
         thread_print("Checking responses...");
 
         for (auto p = server_side_locks.begin(); p < server_side_locks.end(); p++) { 
@@ -243,7 +268,13 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::p
         if (transaction_failed) {
             thread_print("Transaction failed");
             for (auto p = server_side_locks.begin(); p < server_side_locks.end(); p++) {
-                send_message(p->first, "U " + std::to_string(p->second));
+                std::stringstream unlock_sstr;
+                unlock_sstr << "U ";
+                for (int i = 0; i < p->second.size(); i++) {
+                    // send_message(p->first, "U " + std::to_string(p->second));
+                    unlock_sstr << std::to_string(p->second[i]);
+                }
+                send_message(p->first, unlock_sstr.str());
             }
             // for (auto c = client_side_locks.begin(); c < client_side_locks.end(); c++) {
             //     thread_print("Unlocking " + std::to_string((*c)->node_id));

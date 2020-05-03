@@ -8,6 +8,7 @@
 #include <boost/enable_shared_from_this.hpp>
 #include <boost/bind.hpp>
 #include <boost/thread/thread.hpp>
+#include <boost/algorithm/string.hpp>
 #include "tcp_connection.cpp"
 #include "map.cpp"
 #include "log.cpp"
@@ -72,7 +73,6 @@ template<class V> class Node {
         
     }
 
-    //TODO Handle failed gets due to contention
     std::string get_response(std::string request_str) {
         
         // thread_print("requesting " + request_str);
@@ -81,6 +81,7 @@ template<class V> class Node {
         if (request_str.length() < 1)
             return ret;
         char type = request_str[0];
+        boost::erase_all(request_str, "\n");
         switch (type) {
             case 'G':
                 {
@@ -88,6 +89,7 @@ template<class V> class Node {
                     bool res = map.try_lock(key);
                     ret = (res) ? "1 " + std::to_string(map.get(key)) : "0";
                     if (res) map.unlock(key);
+                    // log("");
                 }
                 break;
             case 'P':
@@ -97,22 +99,39 @@ template<class V> class Node {
                     V value = std::stoi(request_str.substr(v_idx));
                     map.put(key, value);
                     map.unlock(key);
+                    log(request_str);
                     // ret = "1";
                 }   
                 break;
             case 'L':
                 {
-                    int key = std::stoi(request_str.substr(2));
-                    bool res = map.try_lock(key);
-                    ret = (res) ? "1" : "0";
-                    if (!res)
-                        thread_print("Failed");
+                    std::vector<std::string> tokens;
+                    boost::split(tokens, request_str, boost::is_any_of(" "));
+                    std::vector<int> locked_keys;
+                    for (int i = 1; i < tokens.size(); i++) {
+                        int key = std::stoi(tokens[i]);
+                        bool res = map.try_lock(key);
+                        ret = (res) ? "1" : "0";
+                        if (!res) {
+                            for (int j = 0; j < locked_keys.size(); j++)
+                                map.unlock(locked_keys[j]);
+                            thread_print("Failed");
+                        }
+                        else 
+                            locked_keys.push_back(key);
+                    }
+                    log(request_str + " 1");
                 }
                 break;
             case 'U':
                 {
-                    int key = std::stoi(request_str.substr(2));
-                    map.unlock(key);
+                    std::vector<std::string> tokens;
+                    boost::split(tokens, request_str, boost::is_any_of(" "));
+                    for (int i = 1; i < tokens.size(); i++) {
+                        int key = std::stoi(tokens[i]);
+                        map.unlock(key);
+                    }
+                    log(request_str);
                 }
                 break;
             default:
