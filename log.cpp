@@ -15,9 +15,9 @@ void print(std::string msg) {
 void thread_print(std::string msg) {
     // static std::mutex m;
     // std::lock_guard<std::mutex> lock(m);
-    // std::stringstream sstr;
-    // sstr << "Thread " << std::this_thread::get_id() << ": " << msg << std::endl;
-    // // std::cerr << sstr.str();
+    std::stringstream sstr;
+    sstr << "Thread " << std::this_thread::get_id() << ": " << msg << std::endl;
+    std::cerr << sstr.str();
     // std::ofstream out;
     // static bool append = false;
     // if (!append)

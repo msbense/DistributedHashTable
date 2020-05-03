@@ -35,6 +35,7 @@ int successful_multiputs = 0;
 int unsuccessful_multiputs = 0;
 int successful_gets = 0;
 int unsuccessful_gets = 0;
+int completed = 0;
 
 //Network stuff
 enum operation_type { GET=0, PUT=1, MULTIPUT=2 };
@@ -425,24 +426,38 @@ bool parse_response(std::string response_string, operation_type optype) {
                 unsuccessful_gets++;
                 return false;
             }
-            else successful_gets++;
+            else { 
+                successful_gets++; 
+                completed++;
+            }
             break;
         case PUT:
             if (response_string[0] == '0') {
                 unsuccessful_puts++;
                 return false;
             }
-            else successful_puts++;
+            else { 
+                successful_puts++;
+                completed++; 
+            }
             break;
         case MULTIPUT:
             if (response_string[0] == '0') {
                 unsuccessful_multiputs++;
                 return false;
             }
-            else successful_multiputs++;
+            else { 
+                successful_multiputs++; 
+                completed++;
+            }
             break;
         default:
             break;
+    }
+    static std::mutex mtx;
+    std::lock_guard<std::mutex> lock(mtx);
+    if (completed % 100 == 0) {
+        std::cerr << "Completed " <<  completed;
     }
     return true;
 }
