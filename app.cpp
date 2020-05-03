@@ -146,7 +146,7 @@ int transaction(boost::asio::io_service &io, std::vector<node_info> nodes_info, 
 }
 
 void exp_backoff(int wait_time_exp) {
-    // return;
+    return;
     if (wait_time_exp > 0) {
         int i;
         for (i = 0; i < wait_time_exp; i++) {
