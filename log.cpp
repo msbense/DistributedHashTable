@@ -31,6 +31,7 @@ void thread_print(std::string msg) {
 }
 
 void log(std::string msg) {
+    return;
     static std::mutex mtx;
     std::lock_guard<std::mutex> lock(mtx);
     static int lognum = std::rand() % 100; 
