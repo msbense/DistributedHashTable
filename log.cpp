@@ -2,7 +2,9 @@
 #include <thread>
 #include <fstream>
 #include <mutex>
+#include <string>
 
+const std::string log_filename = "log.txt";
 
 void print(std::string msg) {
     std::stringstream sstr;
@@ -26,5 +28,13 @@ void thread_print(std::string msg) {
     // }
     // out << sstr.str();
     // out.close();
-
 }
+
+void log(std::string msg) {
+    static std::mutex mtx;
+    std::lock_guard<std::mutex> lock(mtx);
+    static int lognum = std::rand() % 100; 
+    static std::ofstream out(log_filename + std::to_string(lognum), std::ofstream::app);
+    out << msg << std::endl;
+    out.flush();
+} 
