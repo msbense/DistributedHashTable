@@ -152,12 +152,12 @@ void exp_backoff(int wait_time_exp) {
         int i;
         for (i = 0; i < wait_time_exp; i++) {
             if (std::rand() % 2 == 0) {
-                std::this_thread::sleep_for(std::chrono::milliseconds((int)std::pow(2, i)));
+                std::this_thread::sleep_for(std::chrono::seconds((int)std::pow(2, i)));
                 return;
             }
         }
         if (i == wait_time_exp)
-            std::this_thread::sleep_for(std::chrono::milliseconds((int)std::pow(2, i)));
+            std::this_thread::sleep_for(std::chrono::seconds((int)std::pow(2, i)));
     }
 }
 
