@@ -94,12 +94,17 @@ template<class V> class Node {
                 break;
             case 'P':
                 {
-                    int key = std::stoi(request_str.substr(2));
-                    size_t v_idx = request_str.find(" ", 2) + 1;
-                    V value = std::stoi(request_str.substr(v_idx));
+                    // int key = std::stoi(request_str.substr(2));
+                    // size_t v_idx = request_str.find(" ", 2) + 1;
                     node_log(request_str);
-                    map.put(key, value);
-                    map.unlock(key);
+                    std::vector<std::string> tokens;
+                    boost::split(tokens, request_str, boost::is_any_of(" "));
+                    for (int i = 1; i < tokens.size(); i += 2) {
+                        int key = std::stoi(tokens[i]);
+                        V value = std::stoi(tokens[i + 1]);
+                        map.put(key, value);
+                        map.unlock(key);
+                    }
                 }   
                 break;
             case 'L':

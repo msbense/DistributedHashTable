@@ -214,13 +214,27 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::p
             if (!transaction_failed) {
                 thread_print("Setting up " + std::to_string(p.first) + " " + std::to_string(p.second));
                 for (int i = 0; i < REPLICATION; i++) {
-                    std::string req_str = "P " + std::to_string(p.first) + " " + std::to_string(p.second);
+                    
                     connection_info* con = connect_to_node(io, p.first + i, nodes_info, open_connections);
-                    operations.push_back(std::pair<connection_info*, std::string>(con, req_str));
+                    bool append_to_existing_message = false;
+                    for (int j = 0; j < operations.size(); j++) {
+                        if (operations[j].first == con) {
+                            operations[j].second = operations[j].second + " " + std::to_string(p.first) + " " + std::to_string(p.second);
+                            append_to_existing_message = true;
+                        }
+                    }
+                    if (!append_to_existing_message) {
+                        std::string req_str = "P " + std::to_string(p.first) + " " + std::to_string(p.second);
+                        operations.push_back(std::pair<connection_info*, std::string>(con, req_str));
+                    }   
+
+                    // connection_info* con = connect_to_node(io, p.first + i, nodes_info, open_connections);
+                    // std::string req_str = "P " + std::to_string(p.first) + " " + std::to_string(p.second);
+                    // operations.push_back(std::pair<connection_info*, std::string>(con, req_str));
 
                     bool contains_lock = false;
-                    for (int i = 0; i < server_side_locks.size() && !contains_lock; i++) {
-                        auto lock = server_side_locks[i];
+                    for (int j = 0; j < server_side_locks.size() && !contains_lock; j++) {
+                        auto lock = server_side_locks[j];
                         if (lock.first == con) {
                             contains_lock = true;
                             if (std::find(lock.second.begin(), lock.second.end(), p.first) == lock.second.end())
