@@ -289,7 +289,7 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::p
         if (transaction_failed) {
             thread_print("Transaction failed");
 
-            parse_response(response, (n > 1) ? MULTIPUT : PUT);
+            parse_response("0", (n > 1) ? MULTIPUT : PUT);
 
             std::stringstream abort_sstr;
             abort_sstr << "U";
