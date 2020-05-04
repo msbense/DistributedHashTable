@@ -4,7 +4,8 @@
 #include <mutex>
 #include <string>
 
-const std::string log_filename = "log.txt";
+const std::string node_log_filename = "node_log.txt";
+const std::string app_log_filename = "app_log.txt";
 
 void print(std::string msg) {
     std::stringstream sstr;
@@ -30,12 +31,18 @@ void thread_print(std::string msg) {
     // out.close();
 }
 
-void log(std::string msg) {
-    return;
+void app_log(std::string msg) {
     static std::mutex mtx;
     std::lock_guard<std::mutex> lock(mtx);
-    static int lognum = std::rand() % 100; 
-    static std::ofstream out(log_filename + std::to_string(lognum), std::ofstream::app);
-    out << msg << std::endl;
+    static std::ofstream out(app_log_filename, std::ofstream::app);
+    out << std::this_thread::get_id() << ": " << msg << std::endl;
+    out.flush();
+} 
+
+void node_log(std::string msg) {
+    static std::mutex mtx;
+    std::lock_guard<std::mutex> lock(mtx);
+    static std::ofstream out(node_log_filename, std::ofstream::app);
+    out << std::this_thread::get_id() << ": " << msg << std::endl;
     out.flush();
 } 
