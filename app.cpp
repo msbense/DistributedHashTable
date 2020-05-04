@@ -281,7 +281,6 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::p
             std::string response = receive_message(con);
             if (response.compare("0\n") == 0) {
                 transaction_failed = true;
-                parse_response(response, (n > 1) ? MULTIPUT : PUT);
                 server_side_locks.erase(p);
             }
         }
@@ -289,6 +288,8 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::p
         //unlock all server-side locks, return and try again
         if (transaction_failed) {
             thread_print("Transaction failed");
+
+            parse_response(response, (n > 1) ? MULTIPUT : PUT);
 
             std::stringstream abort_sstr;
             abort_sstr << "U";
