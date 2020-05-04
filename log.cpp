@@ -32,6 +32,7 @@ void thread_print(std::string msg) {
 }
 
 void app_log(std::string msg) {
+    return;
     static std::mutex mtx;
     std::lock_guard<std::mutex> lock(mtx);
     static std::ofstream out(app_log_filename, std::ofstream::app);
@@ -40,6 +41,7 @@ void app_log(std::string msg) {
 } 
 
 void node_log(std::string msg) {
+    return;
     static std::mutex mtx;
     std::lock_guard<std::mutex> lock(mtx);
     static std::ofstream out(node_log_filename, std::ofstream::app);
