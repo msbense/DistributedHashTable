@@ -241,6 +241,14 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::p
                 }
             }
         });
+
+        std::stringstream commit_sstr;
+        commit_sstr << "L";
+        for (auto p = key_values.begin(); p < key_values.end(); p++) { 
+            commit_sstr << " " << p->first;
+        }
+        app_log(commit_sstr.str());
+
         for (auto p = server_side_locks.begin(); p < server_side_locks.end(); p++) { 
             auto con = p->first;
             std::stringstream lock_sstr;
@@ -264,10 +272,17 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::p
             }
         }
         
-        
         //unlock all server-side locks, return and try again
         if (transaction_failed) {
             thread_print("Transaction failed");
+
+            std::stringstream abort_sstr;
+            abort_sstr << "U";
+            for (auto p = key_values.begin(); p < key_values.end(); p++) { 
+                abort_sstr << " " << p->first;
+            }
+            app_log(abort_sstr.str());
+
             for (auto p = server_side_locks.begin(); p < server_side_locks.end(); p++) {
                 std::stringstream unlock_sstr;
                 unlock_sstr << "U ";
@@ -286,6 +301,13 @@ int put(boost::asio::io_service &io, std::vector<node_info> nodes_info, boost::p
         }
         else {
             // m.unlock();
+
+            std::stringstream commit_sstr;
+            commit_sstr << "P";
+            for (auto p = key_values.begin(); p < key_values.end(); p++) { 
+                commit_sstr << " " << p->first << " " << p->second;
+            }
+            app_log(commit_sstr.str());
 
             //Perform operations
             std::for_each(operations.begin(), operations.end(), 

@@ -97,10 +97,9 @@ template<class V> class Node {
                     int key = std::stoi(request_str.substr(2));
                     size_t v_idx = request_str.find(" ", 2) + 1;
                     V value = std::stoi(request_str.substr(v_idx));
+                    node_log(request_str);
                     map.put(key, value);
                     map.unlock(key);
-                    log(request_str);
-                    // ret = "1";
                 }   
                 break;
             case 'L':
@@ -120,7 +119,7 @@ template<class V> class Node {
                         else 
                             locked_keys.push_back(key);
                     }
-                    log(request_str + " 1");
+                    node_log(request_str + " " + ret);
                 }
                 break;
             case 'U':
@@ -131,7 +130,6 @@ template<class V> class Node {
                         int key = std::stoi(tokens[i]);
                         map.unlock(key);
                     }
-                    log(request_str);
                 }
                 break;
             default:
